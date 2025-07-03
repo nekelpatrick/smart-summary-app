@@ -6,29 +6,29 @@ import Spinner from "../components/Spinner";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export default function Home() {
-  const [inputText, setInputText] = useState("");
+  const [text, setText] = useState("");
   const [summary, setSummary] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>("");
   const [copied, setCopied] = useState(false);
-  const debounceTimeout = useRef<NodeJS.Timeout | undefined>(undefined);
+  const timeout = useRef<NodeJS.Timeout | undefined>(undefined);
 
-  const generateSummary = useCallback(async (text: string) => {
-    if (!text.trim()) return;
+  const summarize = useCallback(async (content: string) => {
+    if (!content.trim()) return;
 
-    setError(null);
+    setError("");
     setSummary("");
-    setIsLoading(true);
+    setLoading(true);
 
     try {
       const response = await fetch(`${API_URL}/summarize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, max_length: 300 }),
+        body: JSON.stringify({ text: content, max_length: 300 }),
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to generate summary: ${response.status}`);
+        throw new Error(`Summarization failed (${response.status})`);
       }
 
       const data = await response.json();
@@ -36,27 +36,22 @@ export default function Home() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   }, []);
 
   const handlePaste = useCallback(
     (event: ClipboardEvent) => {
-      const pastedText = event.clipboardData?.getData("text");
-      if (!pastedText?.trim()) return;
+      const content = event.clipboardData?.getData("text");
+      if (!content?.trim()) return;
 
-      setInputText(pastedText);
-      setError(null);
+      setText(content);
+      setError("");
 
-      if (debounceTimeout.current) {
-        clearTimeout(debounceTimeout.current);
-      }
-
-      debounceTimeout.current = setTimeout(() => {
-        generateSummary(pastedText);
-      }, 500);
+      if (timeout.current) clearTimeout(timeout.current);
+      timeout.current = setTimeout(() => summarize(content), 500);
     },
-    [generateSummary]
+    [summarize]
   );
 
   const copyToClipboard = useCallback(() => {
@@ -68,34 +63,47 @@ export default function Home() {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       })
-      .catch(() => setError("Failed to copy to clipboard"));
+      .catch(() => setError("Failed to copy"));
   }, [summary]);
 
-  const clearAll = useCallback(() => {
-    setInputText("");
+  const reset = useCallback(() => {
+    setText("");
     setSummary("");
-    setError(null);
-    setIsLoading(false);
+    setError("");
+    setLoading(false);
     setCopied(false);
-    if (debounceTimeout.current) {
-      clearTimeout(debounceTimeout.current);
-    }
+    if (timeout.current) clearTimeout(timeout.current);
   }, []);
+
+  const loadExample = useCallback(async () => {
+    try {
+      setError("");
+      setLoading(true);
+
+      const response = await fetch(`${API_URL}/example`);
+      if (!response.ok) {
+        throw new Error(`Failed to load example (${response.status})`);
+      }
+
+      const data = await response.json();
+      setText(data.text);
+      await summarize(data.text);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Example failed to load");
+      setLoading(false);
+    }
+  }, [summarize]);
 
   useEffect(() => {
     document.addEventListener("paste", handlePaste);
     return () => {
       document.removeEventListener("paste", handlePaste);
-      if (debounceTimeout.current) {
-        clearTimeout(debounceTimeout.current);
-      }
+      if (timeout.current) clearTimeout(timeout.current);
     };
   }, [handlePaste]);
 
-  const stats = {
-    words: inputText.trim() ? inputText.trim().split(/\s+/).length : 0,
-    characters: inputText.length,
-  };
+  const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+  const charCount = text.length;
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6 md:p-12">
@@ -106,16 +114,19 @@ export default function Home() {
           </h1>
         </header>
 
-        {!inputText && <WelcomeInstructions />}
-
-        {inputText && (
-          <InputTextDisplay text={inputText} stats={stats} onClear={clearAll} />
+        {!text && <Instructions onExample={loadExample} loading={loading} />}
+        {text && (
+          <TextDisplay
+            text={text}
+            words={wordCount}
+            chars={charCount}
+            onClear={reset}
+          />
         )}
-
-        {(inputText || isLoading) && (
-          <SummaryDisplay
+        {(text || loading) && (
+          <ResultDisplay
             summary={summary}
-            isLoading={isLoading}
+            loading={loading}
             error={error}
             copied={copied}
             onCopy={copyToClipboard}
@@ -126,19 +137,27 @@ export default function Home() {
   );
 }
 
-function WelcomeInstructions() {
+function Instructions({
+  onExample,
+  loading,
+}: {
+  onExample: () => void;
+  loading: boolean;
+}) {
+  const steps = [
+    "Find text you want to summarize",
+    "Copy it (Ctrl+C or ⌘+C)",
+    "Paste anywhere on this page (Ctrl+V or ⌘+V)",
+    "Get your summary instantly!",
+  ];
+
   return (
     <div className="mb-8 rounded-lg bg-white p-8 shadow-lg">
       <h2 className="mb-6 text-2xl font-semibold text-gray-700">
         How it works
       </h2>
       <ol className="space-y-3 text-lg text-gray-600">
-        {[
-          "Find the text you want to summarize",
-          "Copy it to your clipboard (Ctrl+C or ⌘+C)",
-          "Paste it anywhere on this page (Ctrl+V or ⌘+V)",
-          "Get your AI-generated summary instantly!",
-        ].map((step, index) => (
+        {steps.map((step, index) => (
           <li key={index} className="flex items-start">
             <span className="mr-3 mt-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-sm font-bold text-white">
               {index + 1}
@@ -147,36 +166,54 @@ function WelcomeInstructions() {
           </li>
         ))}
       </ol>
+      <div className="mt-6 flex justify-center">
+        <button
+          onClick={onExample}
+          disabled={loading}
+          className="flex items-center justify-center rounded-lg bg-green-500 px-6 py-3 text-white font-semibold hover:bg-green-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+        >
+          {loading ? (
+            <>
+              <Spinner size={20} className="mr-2 text-white" />
+              Loading...
+            </>
+          ) : (
+            "Try Example"
+          )}
+        </button>
+      </div>
       <hr className="my-6 border-gray-200" />
-      <p className="text-sm text-gray-500">
-        Powered by LLM&apos;s, running securely on our servers.
+      <p className="text-sm text-gray-500 text-center">
+        Powered by AI, running securely on our servers
       </p>
     </div>
   );
 }
 
-function InputTextDisplay({
+function TextDisplay({
   text,
-  stats,
+  words,
+  chars,
   onClear,
 }: {
   text: string;
-  stats: { words: number; characters: number };
+  words: number;
+  chars: number;
   onClear: () => void;
 }) {
   return (
     <div className="mb-6 rounded-lg bg-white p-6 shadow-lg">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-gray-700">Original Text</h2>
+        <h2 className="text-xl font-semibold text-gray-700">Your Text</h2>
         <div className="flex items-center space-x-4">
           <span className="text-sm text-gray-500">
-            {stats.characters} characters • {stats.words} words
+            {chars} characters • {words} words
           </span>
           <button
             onClick={onClear}
             className="text-sm font-medium text-red-500 hover:text-red-700"
           >
-            Clear All
+            Clear
           </button>
         </div>
       </div>
@@ -189,16 +226,16 @@ function InputTextDisplay({
   );
 }
 
-function SummaryDisplay({
+function ResultDisplay({
   summary,
-  isLoading,
+  loading,
   error,
   copied,
   onCopy,
 }: {
   summary: string;
-  isLoading: boolean;
-  error: string | null;
+  loading: boolean;
+  error: string;
   copied: boolean;
   onCopy: () => void;
 }) {
@@ -222,10 +259,10 @@ function SummaryDisplay({
         </div>
       )}
 
-      {isLoading && (
+      {loading && (
         <div className="flex flex-col items-center py-8">
           <Spinner size={32} className="mb-4 text-blue-500" />
-          <p className="text-sm text-gray-500">Generating your summary...</p>
+          <p className="text-sm text-gray-500">Creating your summary...</p>
         </div>
       )}
 
