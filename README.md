@@ -6,8 +6,30 @@ A full-stack application that allows users to paste a block of text and receive 
 
 This is a monorepo containing:
 
-- `apps/frontend`: Next.js frontend application
-- `apps/backend`: FastAPI backend service
+- `apps/frontend`: Next.js frontend application with TypeScript and Tailwind CSS
+- `apps/backend`: FastAPI backend service with Python
+
+## Features
+
+- Text summarization using LLM technology
+- Real-time streaming of summary results
+- Clean, responsive UI
+- Error handling and validation
+- Character and word count statistics
+
+## Tech Stack
+
+### Frontend
+- Next.js with TypeScript
+- Tailwind CSS for styling
+- React hooks for state management
+- Fetch API for data fetching and streaming
+
+### Backend
+- FastAPI (Python)
+- OpenAI API integration (configurable for other LLM providers)
+- Server-sent events for streaming responses
+- Environment-based configuration
 
 ## Setup Instructions
 
@@ -16,6 +38,7 @@ This is a monorepo containing:
 - Node.js (v16+)
 - Python (v3.8+)
 - npm or yarn
+- OpenAI API key (or another LLM provider API key)
 
 ### Frontend Setup
 
@@ -25,6 +48,9 @@ cd apps/frontend
 
 # Install dependencies
 npm install
+
+# Create a .env.local file with the API URL
+echo "NEXT_PUBLIC_API_URL=http://localhost:8000" > .env.local
 
 # Start the development server
 npm run dev
@@ -50,8 +76,10 @@ venv\Scripts\activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Create a .env file (copy from .env.example)
-# Add your LLM API keys
+# Create a .env file with your API keys
+# Copy the example file and edit it
+cp .env.example .env
+# Edit the .env file to add your OpenAI API key
 
 # Start the development server
 python run.py
@@ -59,25 +87,73 @@ python run.py
 
 The API will be available at http://localhost:8000
 
+### Running Both Services
+
+From the project root, after installing dependencies:
+
+```bash
+# Install the concurrently package
+npm install
+
+# Run both services
+npm run dev
+```
+
+## API Endpoints
+
+### GET /
+- Returns a simple message indicating the API is running
+
+### GET /health
+- Health check endpoint
+
+### POST /summarize
+- Accepts a JSON body with `text`, `max_length` (optional), and `model` (optional)
+- Returns a summary of the provided text
+
+### POST /summarize/stream
+- Accepts the same parameters as `/summarize`
+- Returns a server-sent event stream with the summary tokens
+
 ## Architecture
 
-- **Frontend**: Next.js with TypeScript, Tailwind CSS for styling
-- **Backend**: FastAPI (Python) with server-side streaming
-- **LLM Integration**: Using OpenAI API (or another provider as configured)
+The application follows a client-server architecture:
+
+1. **Frontend (Next.js)**
+   - User interface for text input and summary display
+   - Communicates with backend API
+   - Handles both regular and streaming responses
+
+2. **Backend (FastAPI)**
+   - Receives requests from frontend
+   - Processes text using LLM service
+   - Returns responses (regular or streaming)
+
+3. **LLM Integration**
+   - Abstracts the LLM provider behind a service interface
+   - Currently uses OpenAI but can be extended to other providers
 
 ## Future Improvements
 
-- Add user authentication
-- Save summary history
-- Support multiple LLM providers
-- Add customization options for summaries
-- Implement caching for repeated requests
+- User authentication and saved summaries
+- Multiple LLM provider options
+- Customization options (summary length, style, etc.)
+- Caching for repeated requests
+- Analytics for usage tracking
+- Mobile app version
 
 ## Scaling and Security Considerations
 
-- Rate limiting to prevent API abuse
+### Scaling
+- Horizontal scaling for increased load
+- Caching layer for repeated requests
+- Rate limiting for API endpoints
+- Asynchronous processing for long texts
+
+### Security
 - Input validation and sanitization
-- Proper error handling
+- API key rotation
 - Environment-based configuration
-- API key rotation and secure storage
-- Horizontal scaling for increased load 
+- CORS configuration for production
+- Rate limiting to prevent abuse
+- Proper error handling to avoid information leakage 
