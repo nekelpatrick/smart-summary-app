@@ -3,6 +3,7 @@ from typing import AsyncGenerator, Optional
 import openai
 from fastapi import HTTPException
 from dotenv import load_dotenv
+import asyncio
 
 load_dotenv()
 
@@ -14,10 +15,12 @@ class LLMService:
         if self.api_key == "your_api_key_here":
             raise ValueError("Please replace the placeholder API key in .env with your actual OpenAI API key")
         
+        self.client = openai.OpenAI(api_key=self.api_key)
+        
     async def generate_summary(self, text: str, max_length: Optional[int] = 200, model: str = "gpt-3.5-turbo") -> str:
         try:
-            client = openai.OpenAI(api_key=self.api_key)
-            response = client.chat.completions.create(
+            response = await asyncio.to_thread(
+                self.client.chat.completions.create,
                 model=model,
                 messages=[
                     {"role": "system", "content": f"You are a helpful assistant that summarizes text. Keep the summary concise and under {max_length} characters if possible."},
@@ -38,8 +41,8 @@ class LLMService:
     
     async def stream_summary(self, text: str, max_length: Optional[int] = 200, model: str = "gpt-3.5-turbo") -> AsyncGenerator[str, None]:
         try:
-            client = openai.OpenAI(api_key=self.api_key)
-            response = client.chat.completions.create(
+            response = await asyncio.to_thread(
+                self.client.chat.completions.create,
                 model=model,
                 messages=[
                     {"role": "system", "content": f"You are a helpful assistant that summarizes text. Keep the summary concise and under {max_length} characters if possible."},
