@@ -1,0 +1,1 @@
+# Smart Summary App - FastAPI Backend 

@@ -1,0 +1,23 @@
+{
+ "name": "smart-summary-app",
+ "version": "1.0.0",
+ "description": "A full-stack application that allows users to paste text and receive an LLM-generated summary",
+ "private": true,
+ "workspaces": [
+  "apps/frontend"
+ ],
+ "scripts": {
+  "dev:frontend": "cd apps/frontend && npm run dev",
+  "dev:backend": "cd apps/backend && python run.py",
+  "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+  "build:frontend": "cd apps/frontend && npm run build",
+  "start:frontend": "cd apps/frontend && npm run start"
+ },
+ "devDependencies": {
+  "concurrently": "^8.2.2"
+ },
+ "engines": {
+  "node": ">=16.0.0",
+  "npm": ">=8.0.0"
+ }
+}
