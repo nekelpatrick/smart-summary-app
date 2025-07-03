@@ -43,6 +43,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
   const [copied, setCopied] = useState(false);
+  const [isCached, setIsCached] = useState(false);
   const timeout = useRef<NodeJS.Timeout | undefined>(undefined);
   const cache = useRef<Map<string, string>>(new Map());
 
@@ -53,11 +54,14 @@ export default function Home() {
 
     const cachedSummary = cache.current.get(normalizedContent);
     if (cachedSummary) {
+      setIsCached(true);
       setSummary(cachedSummary);
       setError("");
+      setTimeout(() => setIsCached(false), 2000);
       return;
     }
 
+    setIsCached(false);
     setError("");
     setSummary("");
     setLoading(true);
@@ -70,7 +74,7 @@ export default function Home() {
       });
 
       if (!response.ok) {
-        throw new Error(`Summarization failed (${response.status})`);
+        throw new Error(`Unable to summarize (${response.status})`);
       }
 
       const data = await response.json();
@@ -83,7 +87,7 @@ export default function Home() {
       cache.current.set(normalizedContent, data.summary);
       setSummary(data.summary);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      setError(err instanceof Error ? err.message : "Please try again");
     } finally {
       setLoading(false);
     }
@@ -112,7 +116,7 @@ export default function Home() {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       })
-      .catch(() => setError("Failed to copy"));
+      .catch(() => setError("Unable to copy"));
   }, [summary]);
 
   const reset = useCallback(() => {
@@ -121,6 +125,7 @@ export default function Home() {
     setError("");
     setLoading(false);
     setCopied(false);
+    setIsCached(false);
     cache.current.clear();
     if (timeout.current) clearTimeout(timeout.current);
   }, []);
@@ -156,10 +161,10 @@ export default function Home() {
   const charCount = text.length;
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6 md:p-12">
+    <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 md:p-8 lg:p-12">
       <div className="mx-auto max-w-4xl">
-        <header className="mb-12 text-center">
-          <h1 className="mb-6 text-5xl font-bold text-gray-800">
+        <header className="mb-8 md:mb-12 text-center">
+          <h1 className="mb-4 md:mb-6 text-4xl md:text-5xl font-bold text-gray-800">
             Paste to Summary
           </h1>
         </header>
@@ -179,6 +184,7 @@ export default function Home() {
             loading={loading}
             error={error}
             copied={copied}
+            isCached={isCached}
             onCopy={copyToClipboard}
           />
         )}
@@ -202,11 +208,11 @@ function Instructions({
   ];
 
   return (
-    <div className="mb-8 rounded-lg bg-white p-8 shadow-lg">
-      <h2 className="mb-6 text-2xl font-semibold text-gray-700">
+    <div className="mb-6 md:mb-8 rounded-lg bg-white p-6 md:p-8 shadow-lg transition-all duration-300 hover:shadow-xl">
+      <h2 className="mb-4 md:mb-6 text-xl md:text-2xl font-semibold text-gray-700">
         How it works
       </h2>
-      <ol className="space-y-3 text-lg text-gray-600">
+      <ol className="space-y-3 text-base md:text-lg text-gray-600">
         {steps.map((step, index) => (
           <li key={index} className="flex items-start">
             <span className="mr-3 mt-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-sm font-bold text-white">
@@ -220,7 +226,7 @@ function Instructions({
         <button
           onClick={onExample}
           disabled={loading}
-          className="flex items-center justify-center rounded-lg bg-green-500 px-6 py-3 text-white font-semibold hover:bg-green-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+          className="flex items-center justify-center rounded-lg bg-green-500 px-6 py-3 text-white font-semibold hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed disabled:hover:bg-gray-400"
         >
           {loading ? (
             <>
@@ -232,7 +238,7 @@ function Instructions({
           )}
         </button>
       </div>
-      <hr className="my-6 border-gray-200" />
+      <hr className="my-4 md:my-6 border-gray-200" />
       <p className="text-sm text-gray-500 text-center">
         Powered by AI, running securely on our servers
       </p>
@@ -252,22 +258,24 @@ function TextDisplay({
   onClear: () => void;
 }) {
   return (
-    <div className="mb-6 rounded-lg bg-white p-6 shadow-lg">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-gray-700">Your Text</h2>
-        <div className="flex items-center space-x-4">
+    <div className="mb-6 rounded-lg bg-white p-4 md:p-6 shadow-lg transition-all duration-300 hover:shadow-xl">
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <h2 className="text-lg md:text-xl font-semibold text-gray-700">
+          Your Text
+        </h2>
+        <div className="flex items-center justify-between sm:justify-end sm:space-x-4">
           <span className="text-sm text-gray-500">
             {chars} characters • {words} words
           </span>
           <button
             onClick={onClear}
-            className="text-sm font-medium text-red-500 hover:text-red-700"
+            className="text-sm font-medium text-red-500 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 rounded px-2 py-1 transition-all duration-200"
           >
             Clear
           </button>
         </div>
       </div>
-      <div className="max-h-40 overflow-y-auto rounded-md border bg-gray-50 p-4">
+      <div className="max-h-40 overflow-y-auto rounded-md border bg-gray-50 p-3 md:p-4">
         <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-700">
           {text}
         </p>
@@ -281,42 +289,70 @@ function ResultDisplay({
   loading,
   error,
   copied,
+  isCached,
   onCopy,
 }: {
   summary: string;
   loading: boolean;
   error: string;
   copied: boolean;
+  isCached: boolean;
   onCopy: () => void;
 }) {
   return (
-    <div className="rounded-lg bg-white p-6 shadow-lg">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-gray-700">Summary</h2>
+    <div className="rounded-lg bg-white p-4 md:p-6 shadow-lg transition-all duration-300 hover:shadow-xl">
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg md:text-xl font-semibold text-gray-700">
+            Summary
+          </h2>
+          {isCached && (
+            <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full animate-pulse">
+              Cached
+            </span>
+          )}
+        </div>
         {summary && (
           <button
             onClick={onCopy}
-            className="rounded bg-blue-500 px-3 py-1 text-sm font-medium text-white hover:bg-blue-600"
+            className="rounded bg-blue-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 disabled:bg-gray-400"
           >
-            {copied ? "Copied!" : "Copy"}
+            {copied ? (
+              <span className="flex items-center gap-1">
+                <svg
+                  className="w-4 h-4"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                Copied!
+              </span>
+            ) : (
+              "Copy"
+            )}
           </button>
         )}
       </div>
 
       {error && (
-        <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
+        <div className="mb-4 rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700 transition-all duration-300">
           {error}
         </div>
       )}
 
       {loading && (
-        <div className="flex items-center justify-center py-8">
+        <div className="flex items-center justify-center py-8 transition-all duration-300">
           <Spinner size={32} className="text-blue-500" />
         </div>
       )}
 
       {summary && (
-        <div className="rounded-md border bg-gray-50 p-4">
+        <div className="rounded-md border bg-gray-50 p-3 md:p-4 transition-all duration-300 hover:bg-gray-100">
           <p className="leading-relaxed text-gray-700">{summary}</p>
         </div>
       )}
