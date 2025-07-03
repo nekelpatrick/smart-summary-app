@@ -1,26 +1,36 @@
 {
- "name": "smart-summary-app",
- "version": "1.0.0",
- "description": "A full-stack application that allows users to paste text and receive an LLM-generated summary",
- "private": true,
- "workspaces": [
-  "apps/frontend"
- ],
- "scripts": {
-  "dev:frontend": "cd apps/frontend && npm run dev",
-  "dev:backend": "cd apps/backend && python run.py",
-  "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
-  "build:frontend": "cd apps/frontend && npm run build",
-  "start:frontend": "cd apps/frontend && npm run start",
-  "install:all": "npm install && cd apps/frontend && npm install",
-  "setup:backend": "cd apps/backend && pip install -r requirements.txt",
-  "setup": "npm run install:all && npm run setup:backend"
- },
- "devDependencies": {
-  "concurrently": "^8.2.2"
- },
- "engines": {
-  "node": ">=16.0.0",
-  "npm": ">=8.0.0"
- }
+  "name": "smart-summary-app",
+  "version": "1.0.0",
+  "description": "A full-stack application that allows users to paste text and receive an LLM-generated summary",
+  "private": true,
+  "workspaces": [
+    "apps/frontend"
+  ],
+  "scripts": {
+    "dev:frontend": "cd apps/frontend && npm run dev",
+    "dev:backend": "cd apps/backend && python run.py",
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "build:frontend": "cd apps/frontend && npm run build",
+    "start:frontend": "cd apps/frontend && npm run start",
+    "install:all": "npm install && cd apps/frontend && npm install",
+    "setup:backend": "cd apps/backend && pip install -r requirements.txt",
+    "setup": "npm run install:all && npm run setup:backend",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up",
+    "docker:up:build": "docker-compose up --build",
+    "docker:up:detach": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs",
+    "docker:clean": "docker-compose down --volumes --remove-orphans && docker system prune -f",
+    "test": "cd apps/backend && python -m pytest",
+    "test:frontend": "cd apps/frontend && npm test",
+    "start": "npm run docker:up:build"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  }
 }

@@ -20,12 +20,14 @@ This is a monorepo containing:
 ## Tech Stack
 
 ### Frontend
+
 - Next.js with TypeScript
 - Tailwind CSS for styling
 - React hooks for state management
 - Fetch API for data fetching and streaming
 
 ### Backend
+
 - FastAPI (Python)
 - OpenAI API integration (configurable for other LLM providers)
 - Server-sent events for streaming responses
@@ -145,16 +147,20 @@ As machines become increasingly capable, tasks considered to require "intelligen
 ## API Endpoints
 
 ### GET /
+
 - Returns a simple message indicating the API is running
 
 ### GET /health
+
 - Health check endpoint
 
 ### POST /summarize
+
 - Accepts a JSON body with `text`, `max_length` (optional), and `model` (optional)
 - Returns a summary of the provided text
 
 ### POST /summarize/stream
+
 - Accepts the same parameters as `/summarize`
 - Returns a server-sent event stream with the summary tokens
 
@@ -163,11 +169,13 @@ As machines become increasingly capable, tasks considered to require "intelligen
 The application follows a client-server architecture:
 
 1. **Frontend (Next.js)**
+
    - User interface for text input and summary display
    - Communicates with backend API
    - Handles both regular and streaming responses
 
 2. **Backend (FastAPI)**
+
    - Receives requests from frontend
    - Processes text using LLM service
    - Returns responses (regular or streaming)
@@ -188,15 +196,190 @@ The application follows a client-server architecture:
 ## Scaling and Security Considerations
 
 ### Scaling
+
 - Horizontal scaling for increased load
 - Caching layer for repeated requests
 - Rate limiting for API endpoints
 - Asynchronous processing for long texts
 
 ### Security
+
 - Input validation and sanitization
 - API key rotation
 - Environment-based configuration
 - CORS configuration for production
 - Rate limiting to prevent abuse
-- Proper error handling to avoid information leakage 
+- Proper error handling to avoid information leakage
+
+## Quick Start with Docker
+
+### Prerequisites
+
+- Docker and Docker Compose installed
+- OpenAI API key
+
+### Setup
+
+1. **Clone the repository**
+
+   ```bash
+   git clone <your-repo-url>
+   cd smart-summary-app
+   ```
+
+2. **Set up environment variables**
+
+   ```bash
+   # Create .env file
+   echo "OPENAI_API_KEY=your_openai_api_key_here" > .env
+   ```
+
+3. **Run with Docker Compose**
+
+   ```bash
+   docker-compose up --build
+   ```
+
+4. **Access the application**
+   - Frontend: http://localhost:3000
+   - Backend API: http://localhost:8000
+
+### Docker Commands
+
+```bash
+# Build and start all services
+docker-compose up --build
+
+# Run in background
+docker-compose up -d
+
+# Stop all services
+docker-compose down
+
+# View logs
+docker-compose logs
+
+# Rebuild specific service
+docker-compose build backend
+docker-compose build frontend
+```
+
+## Development Setup
+
+### Prerequisites
+
+- Node.js 22+
+- Python 3.12+
+- OpenAI API key
+
+### Local Development
+
+1. **Install dependencies**
+
+   ```bash
+   npm install
+   ```
+
+2. **Set up environment**
+
+   ```bash
+   echo "OPENAI_API_KEY=your_openai_api_key_here" > .env
+   ```
+
+3. **Start development servers**
+
+   ```bash
+   npm run dev
+   ```
+
+4. **Access the application**
+   - Frontend: http://localhost:3000
+   - Backend: http://localhost:8000
+
+## Project Structure
+
+```
+smart-summary-app/
+├── apps/
+│   ├── backend/          # FastAPI backend
+│   │   ├── app/
+│   │   │   ├── main.py           # API endpoints
+│   │   │   ├── models.py         # Data models
+│   │   │   └── services/
+│   │   │       └── llm_service.py # OpenAI integration
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   └── frontend/         # Next.js frontend
+│       ├── src/
+│       │   └── app/
+│       │       └── page.tsx      # Main application
+│       ├── Dockerfile
+│       └── package.json
+├── docker-compose.yml
+└── package.json
+```
+
+## API Endpoints
+
+- `GET /health` - Health check
+- `GET /example` - Get example text
+- `POST /summarize` - Summarize text
+
+## Environment Variables
+
+- `OPENAI_API_KEY` - Your OpenAI API key (required)
+- `NEXT_PUBLIC_API_URL` - Backend API URL (default: http://localhost:8000)
+
+## Technology Stack
+
+- **Frontend**: Next.js 15, React, TypeScript, Tailwind CSS
+- **Backend**: FastAPI, Python 3.12, OpenAI API
+- **Deployment**: Docker, Docker Compose
+
+## Features
+
+### Smart Caching
+
+- Caches up to 50 previous summaries
+- Instant results for repeated text
+- Automatic cleanup of old entries
+
+### User Experience
+
+- Paste detection anywhere on the page
+- Loading states with animated spinner
+- Copy to clipboard functionality
+- Responsive design for all devices
+
+## Deployment
+
+### AWS Deployment Options
+
+1. **AWS Lightsail** (Recommended for simple deployments)
+
+   - Create a Lightsail instance
+   - Install Docker and Docker Compose
+   - Clone repository and run `docker-compose up -d`
+
+2. **AWS ECS Fargate**
+
+   - Push images to ECR
+   - Create ECS task definitions
+   - Deploy with Application Load Balancer
+
+3. **AWS EC2**
+   - Launch EC2 instance
+   - Install Docker and Docker Compose
+   - Clone repository and run `docker-compose up -d`
+
+### Production Considerations
+
+- Set up proper SSL certificates
+- Configure environment variables securely
+- Set up monitoring and logging
+- Use a reverse proxy (nginx) for production
+- Configure proper CORS settings
+
+## License
+
+MIT License
