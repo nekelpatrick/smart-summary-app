@@ -3,7 +3,6 @@ from typing import AsyncGenerator, Optional
 import openai
 from fastapi import HTTPException
 from dotenv import load_dotenv
-import asyncio
 
 load_dotenv()
 
@@ -13,59 +12,72 @@ class LLMService:
         self.api_key = os.getenv("OPENAI_API_KEY")
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY environment variable not set")
-        if self.api_key == "your_api_key_here":
+        if self.api_key == "your_openai_api_key_here":
             raise ValueError(
-                "Please replace the placeholder API key in .env with your actual OpenAI API key")
+                "Please set your actual OpenAI API key in the .env file")
 
-        self.client = openai.OpenAI(api_key=self.api_key)
-        self.async_client = openai.AsyncOpenAI(api_key=self.api_key)
+        self.client = openai.AsyncOpenAI(api_key=self.api_key)
+        self.model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 
-    async def generate_summary(self, text: str, max_length: Optional[int] = 200, model: str = "gpt-3.5-turbo") -> str:
+    async def generate_summary(self, text: str, max_length: Optional[int] = 200) -> str:
+        if not text.strip():
+            raise ValueError("Text cannot be empty")
+
         try:
-            response = await self.async_client.chat.completions.create(
-                model=model,
+            response = await self.client.chat.completions.create(
+                model=self.model,
                 messages=[
-                    {"role": "system", "content": f"You are a helpful assistant that summarizes text. Keep the summary concise and under {max_length} characters if possible."},
-                    {"role": "user", "content": f"Please summarize the following text:\n\n{text}"}
+                    {
+                        "role": "system",
+                        "content": f"You are a helpful assistant that summarizes text. Provide a concise summary in approximately {max_length} words or less."
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Please summarize the following text:\n\n{text}"
+                    }
                 ],
-                max_tokens=max_length,
-                temperature=0.5
+                max_tokens=max_length * 2,
+                temperature=0.3,
             )
+
             return response.choices[0].message.content.strip()
-        except openai.AuthenticationError:
-            raise HTTPException(
-                status_code=401, detail="Invalid API key or authentication issue with OpenAI")
-        except openai.RateLimitError:
-            raise HTTPException(
-                status_code=429, detail="OpenAI API rate limit exceeded")
+
         except openai.APIError as e:
             raise HTTPException(
                 status_code=500, detail=f"OpenAI API error: {str(e)}")
         except Exception as e:
             raise HTTPException(
-                status_code=500, detail=f"Error generating summary: {str(e)}")
+                status_code=500, detail=f"Unexpected error: {str(e)}")
 
-    async def stream_summary(self, text: str, max_length: Optional[int] = 200, model: str = "gpt-3.5-turbo") -> AsyncGenerator[str, None]:
+    async def generate_summary_stream(self, text: str, max_length: Optional[int] = 200) -> AsyncGenerator[str, None]:
+        if not text.strip():
+            raise ValueError("Text cannot be empty")
+
         try:
-            response = await self.async_client.chat.completions.create(
-                model=model,
+            response = await self.client.chat.completions.create(
+                model=self.model,
                 messages=[
-                    {"role": "system", "content": f"You are a helpful assistant that summarizes text. Keep the summary concise and under {max_length} characters if possible."},
-                    {"role": "user", "content": f"Please summarize the following text:\n\n{text}"}
+                    {
+                        "role": "system",
+                        "content": f"You are a helpful assistant that summarizes text. Provide a concise summary in approximately {max_length} words or less."
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Please summarize the following text:\n\n{text}"
+                    }
                 ],
-                max_tokens=max_length,
-                temperature=0.5,
-                stream=True
+                max_tokens=max_length * 2,
+                temperature=0.3,
+                stream=True,
             )
 
             async for chunk in response:
-                if chunk.choices and chunk.choices[0].delta.content:
+                if chunk.choices[0].delta.content is not None:
                     yield chunk.choices[0].delta.content
-        except openai.AuthenticationError:
-            yield "error: Invalid API key or authentication issue with OpenAI"
-        except openai.RateLimitError:
-            yield "error: OpenAI API rate limit exceeded"
+
         except openai.APIError as e:
-            yield f"error: OpenAI API error: {str(e)}"
+            raise HTTPException(
+                status_code=500, detail=f"OpenAI API error: {str(e)}")
         except Exception as e:
-            yield f"error: Error streaming summary: {str(e)}"
+            raise HTTPException(
+                status_code=500, detail=f"Unexpected error: {str(e)}")

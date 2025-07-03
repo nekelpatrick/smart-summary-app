@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Spinner from "../components/Spinner";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -13,44 +13,7 @@ export default function Home() {
   const [copied, setCopied] = useState(false);
   const debounceTimeout = useRef<NodeJS.Timeout | undefined>(undefined);
 
-  // Auto-focus the page to capture paste events
-  useEffect(() => {
-    window.focus();
-    document.body.focus();
-  }, []);
-
-  // Handle paste events anywhere on the page
-  useEffect(() => {
-    const handlePaste = async (event: ClipboardEvent) => {
-      const pastedText = event.clipboardData?.getData("text");
-      if (pastedText && pastedText.trim()) {
-        setInputText(pastedText);
-        setError(null);
-
-        // Clear existing timeout
-        if (debounceTimeout.current) {
-          clearTimeout(debounceTimeout.current);
-        }
-
-        // Debounce the summarization request
-        debounceTimeout.current = setTimeout(() => {
-          generateSummary(pastedText);
-        }, 500);
-      }
-    };
-
-    // Add paste event listener to the entire document
-    document.addEventListener("paste", handlePaste);
-
-    return () => {
-      document.removeEventListener("paste", handlePaste);
-      if (debounceTimeout.current) {
-        clearTimeout(debounceTimeout.current);
-      }
-    };
-  }, []);
-
-  const generateSummary = async (text: string) => {
+  const generateSummary = useCallback(async (text: string) => {
     if (!text.trim()) return;
 
     setError(null);
@@ -60,29 +23,43 @@ export default function Home() {
     try {
       const response = await fetch(`${API_URL}/summarize`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          text: text,
-          max_length: 300,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, max_length: 300 }),
       });
 
       if (!response.ok) {
-        throw new Error(`Error: ${response.status}`);
+        throw new Error(`Failed to generate summary: ${response.status}`);
       }
 
       const data = await response.json();
       setSummary(data.summary);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
+      setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const copyToClipboard = () => {
+  const handlePaste = useCallback(
+    (event: ClipboardEvent) => {
+      const pastedText = event.clipboardData?.getData("text");
+      if (!pastedText?.trim()) return;
+
+      setInputText(pastedText);
+      setError(null);
+
+      if (debounceTimeout.current) {
+        clearTimeout(debounceTimeout.current);
+      }
+
+      debounceTimeout.current = setTimeout(() => {
+        generateSummary(pastedText);
+      }, 500);
+    },
+    [generateSummary]
+  );
+
+  const copyToClipboard = useCallback(() => {
     if (!summary) return;
 
     navigator.clipboard
@@ -91,12 +68,10 @@ export default function Home() {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       })
-      .catch(() => {
-        setError("Failed to copy to clipboard");
-      });
-  };
+      .catch(() => setError("Failed to copy to clipboard"));
+  }, [summary]);
 
-  const clearAll = () => {
+  const clearAll = useCallback(() => {
     setInputText("");
     setSummary("");
     setError(null);
@@ -105,154 +80,160 @@ export default function Home() {
     if (debounceTimeout.current) {
       clearTimeout(debounceTimeout.current);
     }
+  }, []);
+
+  useEffect(() => {
+    document.addEventListener("paste", handlePaste);
+    return () => {
+      document.removeEventListener("paste", handlePaste);
+      if (debounceTimeout.current) {
+        clearTimeout(debounceTimeout.current);
+      }
+    };
+  }, [handlePaste]);
+
+  const stats = {
+    words: inputText.trim() ? inputText.trim().split(/\s+/).length : 0,
+    characters: inputText.length,
   };
 
-  const wordCount = inputText.trim() ? inputText.trim().split(/\s+/).length : 0;
-  const charCount = inputText.length;
-
   return (
-    <main className="flex min-h-screen flex-col items-center p-6 md:p-12 bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="w-full max-w-4xl">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-5xl font-bold mb-6 text-gray-800">
+    <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6 md:p-12">
+      <div className="mx-auto max-w-4xl">
+        <header className="mb-12 text-center">
+          <h1 className="mb-6 text-5xl font-bold text-gray-800">
             Paste to Summary
           </h1>
-        </div>
+        </header>
 
-        {/* Instructions */}
-        {!inputText && (
-          <div className="bg-white rounded-lg shadow-lg p-8 mb-8">
-            <h2 className="text-2xl font-semibold mb-6 text-gray-700">
-              Instructions
-            </h2>
-            <ol className="space-y-3 text-lg text-gray-600">
-              <li className="flex items-start">
-                <span className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold mr-3 mt-0.5">
-                  1
-                </span>
-                Find the text to summarize (<em>e.g.</em>, in another browser
-                tab)
-              </li>
-              <li className="flex items-start">
-                <span className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold mr-3 mt-0.5">
-                  2
-                </span>
-                Copy it to the clipboard (
-                <kbd className="bg-gray-200 px-1 rounded">Ctrl+C</kbd>, or{" "}
-                <kbd className="bg-gray-200 px-1 rounded">⌘+C</kbd> on Mac)
-              </li>
-              <li className="flex items-start">
-                <span className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold mr-3 mt-0.5">
-                  3
-                </span>
-                Paste it anywhere on this page (
-                <kbd className="bg-gray-200 px-1 rounded">Ctrl+V</kbd>, or{" "}
-                <kbd className="bg-gray-200 px-1 rounded">⌘+V</kbd> on Mac)
-              </li>
-              <li className="flex items-start">
-                <span className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold mr-3 mt-0.5">
-                  4
-                </span>
-                The AI-generated summary will appear!
-              </li>
-            </ol>
-            <hr className="my-6 border-gray-200" />
-            <p className="text-sm text-gray-500">
-              The summarization is powered by OpenAI&apos;s language models,
-              running locally on our servers.
-            </p>
-          </div>
-        )}
+        {!inputText && <WelcomeInstructions />}
 
-        {/* Original Text Display */}
         {inputText && (
-          <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-gray-700">
-                Original Text
-              </h2>
-              <div className="flex items-center space-x-4">
-                <span className="text-sm text-gray-500">
-                  {charCount} characters • {wordCount} words
-                </span>
-                <button
-                  onClick={clearAll}
-                  className="text-red-500 hover:text-red-700 text-sm font-medium"
-                >
-                  Clear All
-                </button>
-              </div>
-            </div>
-            <div className="bg-gray-50 rounded-md p-4 max-h-40 overflow-y-auto border">
-              <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">
-                {inputText}
-              </p>
-            </div>
-          </div>
+          <InputTextDisplay text={inputText} stats={stats} onClear={clearAll} />
         )}
 
-        {/* Summary Display */}
         {(inputText || isLoading) && (
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-gray-700">Summary</h2>
-              {summary && (
-                <button
-                  onClick={copyToClipboard}
-                  className="flex items-center text-blue-500 hover:text-blue-700 font-medium"
-                  disabled={isLoading}
-                >
-                  {copied ? "✓ Copied!" : "📋 Copy to clipboard"}
-                </button>
-              )}
-            </div>
-
-            <div className="bg-gray-50 rounded-md p-4 min-h-32 border">
-              {error ? (
-                <div className="flex items-center text-red-500">
-                  <span className="mr-2">⚠️</span>
-                  <p>{error}</p>
-                </div>
-              ) : isLoading ? (
-                <div className="flex items-center justify-center h-24 text-gray-500">
-                  <Spinner size={24} className="mr-3 text-blue-500" />
-                  <p>Generating summary...</p>
-                </div>
-              ) : summary ? (
-                <div>
-                  <p className="text-gray-700 leading-relaxed mb-3">
-                    {summary}
-                  </p>
-                  <div className="text-xs text-gray-400 border-t pt-2">
-                    Summary: {summary.length} characters •{" "}
-                    {summary.split(/\s+/).filter(Boolean).length} words
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center justify-center h-24 text-gray-400">
-                  <p>Paste some text above to see the summary here...</p>
-                </div>
-              )}
-            </div>
-          </div>
+          <SummaryDisplay
+            summary={summary}
+            isLoading={isLoading}
+            error={error}
+            copied={copied}
+            onCopy={copyToClipboard}
+          />
         )}
-
-        {/* Footer */}
-        <div className="text-center mt-12 text-gray-500 text-sm">
-          <p>
-            Smart Summary • Powered by AI •{" "}
-            <a
-              href="https://openai.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-500 hover:underline"
-            >
-              OpenAI
-            </a>
-          </p>
-        </div>
       </div>
     </main>
+  );
+}
+
+function WelcomeInstructions() {
+  return (
+    <div className="mb-8 rounded-lg bg-white p-8 shadow-lg">
+      <h2 className="mb-6 text-2xl font-semibold text-gray-700">
+        How it works
+      </h2>
+      <ol className="space-y-3 text-lg text-gray-600">
+        {[
+          "Find the text you want to summarize",
+          "Copy it to your clipboard (Ctrl+C or ⌘+C)",
+          "Paste it anywhere on this page (Ctrl+V or ⌘+V)",
+          "Get your AI-generated summary instantly!",
+        ].map((step, index) => (
+          <li key={index} className="flex items-start">
+            <span className="mr-3 mt-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-sm font-bold text-white">
+              {index + 1}
+            </span>
+            {step}
+          </li>
+        ))}
+      </ol>
+      <hr className="my-6 border-gray-200" />
+      <p className="text-sm text-gray-500">
+        Powered by LLM&apos;s, running securely on our servers.
+      </p>
+    </div>
+  );
+}
+
+function InputTextDisplay({
+  text,
+  stats,
+  onClear,
+}: {
+  text: string;
+  stats: { words: number; characters: number };
+  onClear: () => void;
+}) {
+  return (
+    <div className="mb-6 rounded-lg bg-white p-6 shadow-lg">
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-xl font-semibold text-gray-700">Original Text</h2>
+        <div className="flex items-center space-x-4">
+          <span className="text-sm text-gray-500">
+            {stats.characters} characters • {stats.words} words
+          </span>
+          <button
+            onClick={onClear}
+            className="text-sm font-medium text-red-500 hover:text-red-700"
+          >
+            Clear All
+          </button>
+        </div>
+      </div>
+      <div className="max-h-40 overflow-y-auto rounded-md border bg-gray-50 p-4">
+        <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-700">
+          {text}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function SummaryDisplay({
+  summary,
+  isLoading,
+  error,
+  copied,
+  onCopy,
+}: {
+  summary: string;
+  isLoading: boolean;
+  error: string | null;
+  copied: boolean;
+  onCopy: () => void;
+}) {
+  return (
+    <div className="rounded-lg bg-white p-6 shadow-lg">
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-xl font-semibold text-gray-700">Summary</h2>
+        {summary && (
+          <button
+            onClick={onCopy}
+            className="rounded bg-blue-500 px-3 py-1 text-sm font-medium text-white hover:bg-blue-600"
+          >
+            {copied ? "Copied!" : "Copy"}
+          </button>
+        )}
+      </div>
+
+      {error && (
+        <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      {isLoading && (
+        <div className="flex flex-col items-center py-8">
+          <Spinner size={32} className="mb-4 text-blue-500" />
+          <p className="text-sm text-gray-500">Generating your summary...</p>
+        </div>
+      )}
+
+      {summary && (
+        <div className="rounded-md border bg-gray-50 p-4">
+          <p className="leading-relaxed text-gray-700">{summary}</p>
+        </div>
+      )}
+    </div>
   );
 }

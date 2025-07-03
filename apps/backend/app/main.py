@@ -1,17 +1,20 @@
-from fastapi import FastAPI, Request, Response, HTTPException
+from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from typing import Optional
 import os
 from dotenv import load_dotenv
-import asyncio
 
 from .models import TextRequest, SummaryResponse
 from .services.llm_service import LLMService
 
 load_dotenv()
 
-app = FastAPI(title="Smart Summary API")
+app = FastAPI(
+    title="Smart Summary API",
+    description="AI-powered text summarization service",
+    version="1.0.0",
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -35,68 +38,52 @@ async def health_check():
 
 
 @app.post("/summarize", response_model=SummaryResponse)
-async def summarize(request: TextRequest):
+async def summarize_text(request: TextRequest):
+    if not request.text.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Text cannot be empty"
+        )
+
     try:
-        if not request.text.strip():
-            raise HTTPException(status_code=400, detail="Text cannot be empty")
-
-        await asyncio.sleep(0.1)
-
         summary = await llm_service.generate_summary(
             text=request.text,
-            max_length=request.max_length,
-            model=request.model
+            max_length=request.max_length
         )
-
-        return SummaryResponse(
-            summary=summary,
-            original_length=len(request.text),
-            summary_length=len(summary)
-        )
+        return SummaryResponse(summary=summary)
     except Exception as e:
-        if isinstance(e, HTTPException):
-            raise e
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate summary: {str(e)}"
+        )
 
 
 @app.post("/summarize/stream")
-async def summarize_stream(request: TextRequest):
+async def summarize_text_stream(request: TextRequest):
     if not request.text.strip():
-        async def error_generator():
-            yield "data: error: Text cannot be empty\n\n"
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Text cannot be empty"
+        )
+
+    try:
+        async def generate():
+            async for chunk in llm_service.generate_summary_stream(
+                text=request.text,
+                max_length=request.max_length
+            ):
+                yield f"data: {chunk}\n\n"
 
         return StreamingResponse(
-            error_generator(),
-            media_type="text/event-stream",
+            generate(),
+            media_type="text/plain",
             headers={
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",
-                "Access-Control-Allow-Origin": "*",
             }
         )
-
-    async def event_generator():
-        try:
-            await asyncio.sleep(0.1)
-
-            async for token in llm_service.stream_summary(
-                text=request.text,
-                max_length=request.max_length,
-                model=request.model
-            ):
-                yield f"data: {token}\n\n"
-                await asyncio.sleep(0.01)
-
-            yield "data: [DONE]\n\n"
-        except Exception as e:
-            yield f"data: error: {str(e)}\n\n"
-
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "Access-Control-Allow-Origin": "*",
-        }
-    )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate streaming summary: {str(e)}"
+        )
