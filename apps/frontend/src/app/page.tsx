@@ -49,6 +49,15 @@ export default function Home() {
   const summarize = useCallback(async (content: string) => {
     if (!content.trim()) return;
 
+    const normalizedContent = content.trim().replace(/\s+/g, " ");
+
+    const cachedSummary = cache.current.get(normalizedContent);
+    if (cachedSummary) {
+      setSummary(cachedSummary);
+      setError("");
+      return;
+    }
+
     setError("");
     setSummary("");
     setLoading(true);
@@ -65,6 +74,13 @@ export default function Home() {
       }
 
       const data = await response.json();
+
+      if (cache.current.size >= 50) {
+        const firstKey = cache.current.keys().next().value;
+        if (firstKey) cache.current.delete(firstKey);
+      }
+
+      cache.current.set(normalizedContent, data.summary);
       setSummary(data.summary);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -105,6 +121,7 @@ export default function Home() {
     setError("");
     setLoading(false);
     setCopied(false);
+    cache.current.clear();
     if (timeout.current) clearTimeout(timeout.current);
   }, []);
 
