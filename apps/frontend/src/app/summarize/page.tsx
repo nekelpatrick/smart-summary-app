@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import Spinner from "../../components/Spinner";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -71,9 +72,9 @@ export default function SummarizePage() {
     try {
       const fetchController = new AbortController();
       const fetchOptions = {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           text: inputText,
@@ -81,62 +82,64 @@ export default function SummarizePage() {
         }),
         signal: fetchController.signal,
       };
-      
+
       fetch(`${API_URL}/summarize/stream`, fetchOptions)
-        .then(response => {
+        .then((response) => {
           if (!response.ok) {
             throw new Error(`HTTP error! Status: ${response.status}`);
           }
-          
+
           const reader = response.body!.getReader();
           const decoder = new TextDecoder();
-          
+
           function readStream() {
-            reader.read().then(({ done, value }) => {
-              if (done) {
-                setIsLoading(false);
-                setIsStreaming(false);
-                return;
-              }
-              
-              const chunk = decoder.decode(value, { stream: true });
-              
-              const lines = chunk.split('\n\n');
-              for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                  const content = line.substring(6);
-                  
-                  if (content === '[DONE]') {
-                    setIsLoading(false);
-                    setIsStreaming(false);
-                    return;
-                  } else if (content.startsWith('error:')) {
-                    setError(content.substring(6));
-                    setIsLoading(false);
-                    setIsStreaming(false);
-                    return;
-                  } else {
-                    setSummary(prev => prev + content);
+            reader
+              .read()
+              .then(({ done, value }) => {
+                if (done) {
+                  setIsLoading(false);
+                  setIsStreaming(false);
+                  return;
+                }
+
+                const chunk = decoder.decode(value, { stream: true });
+
+                const lines = chunk.split("\n\n");
+                for (const line of lines) {
+                  if (line.startsWith("data: ")) {
+                    const content = line.substring(6);
+
+                    if (content === "[DONE]") {
+                      setIsLoading(false);
+                      setIsStreaming(false);
+                      return;
+                    } else if (content.startsWith("error:")) {
+                      setError(content.substring(6));
+                      setIsLoading(false);
+                      setIsStreaming(false);
+                      return;
+                    } else {
+                      setSummary((prev) => prev + content);
+                    }
                   }
                 }
-              }
-              
-              readStream();
-            }).catch(err => {
-              setError(err.message);
-              setIsLoading(false);
-              setIsStreaming(false);
-            });
+
+                readStream();
+              })
+              .catch((err) => {
+                setError(err.message);
+                setIsLoading(false);
+                setIsStreaming(false);
+              });
           }
-          
+
           readStream();
         })
-        .catch(err => {
+        .catch((err) => {
           setError(err.message);
           setIsLoading(false);
           setIsStreaming(false);
         });
-        
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
       setIsLoading(false);
@@ -158,13 +161,14 @@ export default function SummarizePage() {
 
   const copyToClipboard = () => {
     if (!summary) return;
-    
-    navigator.clipboard.writeText(summary)
+
+    navigator.clipboard
+      .writeText(summary)
       .then(() => {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       })
-      .catch(err => {
+      .catch(() => {
         setError("Failed to copy to clipboard");
       });
   };
@@ -214,9 +218,10 @@ export default function SummarizePage() {
               <div className="flex gap-4 mt-4">
                 <button
                   type="submit"
-                  className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  className="flex items-center justify-center bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:bg-gray-400 disabled:cursor-not-allowed"
                   disabled={isLoading || !inputText.trim()}
                 >
+                  {isLoading && <Spinner size={16} className="mr-2" />}
                   {isLoading ? "Summarizing..." : "Summarize (Stream)"}
                 </button>
                 <button
@@ -261,11 +266,16 @@ export default function SummarizePage() {
               ) : summary ? (
                 <p>{summary}</p>
               ) : (
-                <p className="text-gray-400">
-                  {isLoading
-                    ? "Generating summary..."
-                    : "Your summary will appear here..."}
-                </p>
+                <div className="flex items-center justify-center h-full text-gray-400">
+                  {isLoading ? (
+                    <>
+                      <Spinner size={24} className="mr-2 text-blue-500" />{" "}
+                      Generating summary...
+                    </>
+                  ) : (
+                    <p>Your summary will appear here...</p>
+                  )}
+                </div>
               )}
             </div>
             {summary && (
@@ -283,4 +293,4 @@ export default function SummarizePage() {
       </div>
     </main>
   );
-} 
+}
