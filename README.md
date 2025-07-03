@@ -40,6 +40,29 @@ This is a monorepo containing:
 - npm or yarn
 - OpenAI API key (or another LLM provider API key)
 
+### Quick Setup
+
+For a quick setup of both frontend and backend:
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/smart-summary-app.git
+cd smart-summary-app
+
+# Install all dependencies (frontend and root)
+npm run install:all
+
+# Set up backend
+npm run setup:backend
+
+# Configure your OpenAI API key
+# Edit apps/backend/.env and add your API key
+# OPENAI_API_KEY=your_api_key_here
+
+# Start both services
+npm run dev
+```
+
 ### Frontend Setup
 
 ```bash
@@ -92,11 +115,31 @@ The API will be available at http://localhost:8000
 From the project root, after installing dependencies:
 
 ```bash
-# Install the concurrently package
-npm install
-
 # Run both services
 npm run dev
+```
+
+## Testing the Application
+
+Once both the frontend and backend are running, you can test the application:
+
+1. Open your browser and navigate to http://localhost:3000
+2. Click on "Get Started" or navigate to http://localhost:3000/summarize
+3. Paste a block of text in the input field
+4. Click "Summarize (Stream)" to see the summary generated in real-time or "Summarize (Regular)" for a standard request
+
+### Sample Text for Testing
+
+Here's a sample text you can use to test the application:
+
+```
+Artificial intelligence (AI) is intelligence demonstrated by machines, as opposed to natural intelligence displayed by animals including humans. AI research has been defined as the field of study of intelligent agents, which refers to any system that perceives its environment and takes actions that maximize its chance of achieving its goals.
+
+The term "artificial intelligence" had previously been used to describe machines that mimic and display "human" cognitive skills that are associated with the human mind, such as "learning" and "problem-solving". This definition has since been rejected by major AI researchers who now describe AI in terms of rationality and acting rationally, which does not limit how intelligence can be articulated.
+
+AI applications include advanced web search engines (e.g., Google), recommendation systems (used by YouTube, Amazon, and Netflix), understanding human speech (such as Siri and Alexa), self-driving cars (e.g., Waymo), generative or creative tools (ChatGPT and AI art), automated decision-making, and competing at the highest level in strategic game systems (such as chess and Go).
+
+As machines become increasingly capable, tasks considered to require "intelligence" are often removed from the definition of AI, a phenomenon known as the AI effect. For instance, optical character recognition is frequently excluded from things considered to be AI, having become a routine technology.
 ```
 
 ## API Endpoints

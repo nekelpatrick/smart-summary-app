@@ -1,17 +1,18 @@
 import os
 from typing import AsyncGenerator, Optional
 import openai
+from fastapi import HTTPException
 from dotenv import load_dotenv
 
 load_dotenv()
-
-openai.api_key = os.getenv("OPENAI_API_KEY")
 
 class LLMService:
     def __init__(self):
         self.api_key = os.getenv("OPENAI_API_KEY")
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY environment variable not set")
+        if self.api_key == "your_api_key_here":
+            raise ValueError("Please replace the placeholder API key in .env with your actual OpenAI API key")
         
     async def generate_summary(self, text: str, max_length: Optional[int] = 200, model: str = "gpt-3.5-turbo") -> str:
         try:
@@ -26,8 +27,14 @@ class LLMService:
                 temperature=0.5
             )
             return response.choices[0].message.content.strip()
+        except openai.AuthenticationError:
+            raise HTTPException(status_code=401, detail="Invalid API key or authentication issue with OpenAI")
+        except openai.RateLimitError:
+            raise HTTPException(status_code=429, detail="OpenAI API rate limit exceeded")
+        except openai.APIError as e:
+            raise HTTPException(status_code=500, detail=f"OpenAI API error: {str(e)}")
         except Exception as e:
-            raise Exception(f"Error generating summary: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error generating summary: {str(e)}")
     
     async def stream_summary(self, text: str, max_length: Optional[int] = 200, model: str = "gpt-3.5-turbo") -> AsyncGenerator[str, None]:
         try:
@@ -46,5 +53,11 @@ class LLMService:
             for chunk in response:
                 if chunk.choices and chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
+        except openai.AuthenticationError:
+            yield "error: Invalid API key or authentication issue with OpenAI"
+        except openai.RateLimitError:
+            yield "error: OpenAI API rate limit exceeded"
+        except openai.APIError as e:
+            yield f"error: OpenAI API error: {str(e)}"
         except Exception as e:
-            raise Exception(f"Error streaming summary: {str(e)}") 
+            yield f"error: Error streaming summary: {str(e)}" 

@@ -11,6 +11,7 @@ export default function SummarizePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [copied, setCopied] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
@@ -148,11 +149,28 @@ export default function SummarizePage() {
     setSummary("");
     setError(null);
     setIsLoading(false);
+    setCopied(false);
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
     }
     setIsStreaming(false);
   };
+
+  const copyToClipboard = () => {
+    if (!summary) return;
+    
+    navigator.clipboard.writeText(summary)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch(err => {
+        setError("Failed to copy to clipboard");
+      });
+  };
+
+  const wordCount = inputText.trim() ? inputText.trim().split(/\s+/).length : 0;
+  const charCount = inputText.length;
 
   return (
     <main className="flex min-h-screen flex-col items-center p-6 md:p-12">
@@ -178,6 +196,21 @@ export default function SummarizePage() {
                 onChange={(e) => setInputText(e.target.value)}
                 disabled={isLoading}
               ></textarea>
+              <div className="flex justify-between items-center mt-2 text-sm text-gray-500">
+                <div>
+                  <span className="mr-4">Characters: {charCount}</span>
+                  <span>Words: {wordCount}</span>
+                </div>
+                {charCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setInputText("")}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
               <div className="flex gap-4 mt-4">
                 <button
                   type="submit"
@@ -206,7 +239,18 @@ export default function SummarizePage() {
           </div>
 
           <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-xl font-semibold mb-4">Summary</h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">Summary</h2>
+              {summary && (
+                <button
+                  onClick={copyToClipboard}
+                  className="text-blue-500 hover:text-blue-700 flex items-center"
+                  disabled={isLoading}
+                >
+                  {copied ? "Copied!" : "Copy to clipboard"}
+                </button>
+              )}
+            </div>
             <div
               className={`w-full h-64 p-4 border border-gray-300 rounded-md overflow-auto ${
                 isStreaming ? "animate-pulse bg-gray-50" : ""
