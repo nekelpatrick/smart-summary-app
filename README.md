@@ -135,13 +135,11 @@ Once both the frontend and backend are running, you can test the application:
 Here's a sample text you can use to test the application:
 
 ```
-Artificial intelligence (AI) is intelligence demonstrated by machines, as opposed to natural intelligence displayed by animals including humans. AI research has been defined as the field of study of intelligent agents, which refers to any system that perceives its environment and takes actions that maximize its chance of achieving its goals.
+Urban gardening has become increasingly popular as cities grow and people seek sustainable ways to grow their own food. This practice involves growing plants in urban environments, including rooftops, balconies, and small community spaces. Urban gardens help reduce food miles, provide fresh produce, and create green spaces that benefit both the environment and community well-being.
 
-The term "artificial intelligence" had previously been used to describe machines that mimic and display "human" cognitive skills that are associated with the human mind, such as "learning" and "problem-solving". This definition has since been rejected by major AI researchers who now describe AI in terms of rationality and acting rationally, which does not limit how intelligence can be articulated.
+Many urban gardeners focus on growing herbs, vegetables, and small fruits that can thrive in container gardens or small plots. Popular choices include tomatoes, lettuce, herbs like basil and parsley, and fruits like strawberries. These plants are well-suited for urban environments and provide meaningful harvests even in limited space.
 
-AI applications include advanced web search engines (e.g., Google), recommendation systems (used by YouTube, Amazon, and Netflix), understanding human speech (such as Siri and Alexa), self-driving cars (e.g., Waymo), generative or creative tools (ChatGPT and AI art), automated decision-making, and competing at the highest level in strategic game systems (such as chess and Go).
-
-As machines become increasingly capable, tasks considered to require "intelligence" are often removed from the definition of AI, a phenomenon known as the AI effect. For instance, optical character recognition is frequently excluded from things considered to be AI, having become a routine technology.
+Urban gardening also offers educational opportunities for children and adults to learn about plant biology, sustainable practices, and food production. Community gardens foster social connections and provide shared spaces where neighbors can collaborate and share knowledge about growing techniques.
 ```
 
 ## API Endpoints

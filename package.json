@@ -24,7 +24,16 @@
     "docker:clean": "docker-compose down --volumes --remove-orphans && docker system prune -f",
     "test": "cd apps/backend && python -m pytest",
     "test:frontend": "cd apps/frontend && npm test",
-    "start": "npm run docker:up:build"
+    "start": "npm run docker:up:build",
+    "test:backend": "cd apps/backend && python -m pytest",
+    "test:backend:coverage": "cd apps/backend && python -m pytest --cov-report=html",
+    "test:frontend:coverage": "cd apps/frontend && npm run test:coverage",
+    "test:watch": "concurrently \"npm run test:backend:watch\" \"npm run test:frontend:watch\"",
+    "test:backend:watch": "cd apps/backend && python -m pytest --watch",
+    "test:frontend:watch": "cd apps/frontend && npm run test:watch",
+    "lint": "npm run lint:frontend",
+    "lint:frontend": "cd apps/frontend && npm run lint",
+    "build": "npm run build:frontend"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

@@ -24,7 +24,7 @@ llm = LLMService()
 
 @app.get("/")
 async def root():
-    return {"message": "Smart Summary API"}
+    return {"message": "Smart Summary API", "version": "1.0.0"}
 
 
 @app.get("/health")
