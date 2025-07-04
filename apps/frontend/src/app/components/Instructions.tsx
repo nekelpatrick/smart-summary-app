@@ -10,7 +10,7 @@ export function Instructions({ onExample, loading }: InstructionsProps) {
   ];
 
   return (
-    <div className="mb-6 md:mb-8 rounded-lg bg-white p-6 md:p-8 shadow-lg transition-all duration-300 hover:shadow-xl">
+    <div className="mb-6 md:mb-8 rounded-lg bg-white p-6 md:p-8 shadow-lg">
       <h2 className="mb-4 md:mb-6 text-xl md:text-2xl font-semibold text-gray-700">
         How it works
       </h2>
@@ -28,7 +28,7 @@ export function Instructions({ onExample, loading }: InstructionsProps) {
         <button
           onClick={onExample}
           disabled={loading}
-          className="flex items-center justify-center rounded-lg bg-green-500 px-6 py-3 text-white font-semibold hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed disabled:hover:bg-gray-400"
+          className="flex items-center justify-center rounded-lg bg-green-500 px-6 py-3 text-white font-semibold hover:bg-green-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
         >
           {loading ? (
             <>

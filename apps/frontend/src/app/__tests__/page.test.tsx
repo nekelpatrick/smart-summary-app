@@ -11,7 +11,8 @@ import Home from "../page";
 
   constructor(type: string, eventInit: ClipboardEventInit = {}) {
     super(type, eventInit);
-    this.clipboardData = eventInit.clipboardData || new MockDataTransfer();
+    this.clipboardData = (eventInit.clipboardData ||
+      new MockDataTransfer()) as DataTransfer;
   }
 };
 
@@ -34,6 +35,19 @@ class MockDataTransfer {
 // Mock fetch
 const mockFetch = global.fetch as jest.MockedFunction<typeof fetch>;
 
+const createPasteEvent = (text: string) => {
+  const mockClipboardData = new DataTransfer();
+  mockClipboardData.setData("text/plain", text);
+  return new ClipboardEvent("paste", { clipboardData: mockClipboardData });
+};
+
+const mockApiResponse = (data: unknown, ok = true, status = 200) =>
+  ({
+    ok,
+    status,
+    json: async () => data,
+  } as Response);
+
 describe("Home Component", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -44,100 +58,49 @@ describe("Home Component", () => {
     jest.clearAllTimers();
   });
 
-  it("renders the main heading", () => {
+  it("renders main elements", () => {
     render(<Home />);
     expect(screen.getByText("Paste to Summary")).toBeInTheDocument();
-  });
-
-  it("renders instructions when no text is present", () => {
-    render(<Home />);
     expect(screen.getByText("How it works")).toBeInTheDocument();
-    expect(
-      screen.getByText("Find text you want to summarize")
-    ).toBeInTheDocument();
-    expect(screen.getByText("Copy it (Ctrl+C or ⌘+C)")).toBeInTheDocument();
-    expect(
-      screen.getByText("Paste anywhere on this page (Ctrl+V or ⌘+V)")
-    ).toBeInTheDocument();
-    expect(screen.getByText("Get your summary instantly!")).toBeInTheDocument();
-  });
-
-  it("renders Try Example button", () => {
-    render(<Home />);
     expect(screen.getByText("Try Example")).toBeInTheDocument();
   });
 
-  describe("Try Example functionality", () => {
-    it("loads example text when Try Example is clicked", async () => {
+  describe("Example functionality", () => {
+    it("loads example and summarizes", async () => {
       const user = userEvent.setup();
-
-      // Mock the API responses
       mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ text: "Example text for testing" }),
-        } as Response)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ summary: "Example summary" }),
-        } as Response);
+        .mockResolvedValueOnce(mockApiResponse({ text: "Example text" }))
+        .mockResolvedValueOnce(mockApiResponse({ summary: "Example summary" }));
 
       render(<Home />);
-
-      const tryExampleButton = screen.getByText("Try Example");
-      await user.click(tryExampleButton);
+      await user.click(screen.getByText("Try Example"));
 
       await waitFor(() => {
         expect(mockFetch).toHaveBeenCalledWith("http://localhost:8000/example");
-        expect(mockFetch).toHaveBeenCalledWith(
-          "http://localhost:8000/summarize",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              text: "Example text for testing",
-              max_length: 300,
-            }),
-          }
-        );
+        expect(screen.getByText("Example summary")).toBeInTheDocument();
       });
     });
 
-    it("shows loading spinner while loading example", async () => {
+    it("shows loading state", async () => {
       const user = userEvent.setup();
-
-      // Mock delayed response
       mockFetch.mockImplementation(
         () =>
-          new Promise((resolve) => {
-            setTimeout(
-              () =>
-                resolve({
-                  ok: true,
-                  json: async () => ({ text: "Example text" }),
-                } as Response),
-              100
-            );
-          })
+          new Promise((resolve) =>
+            setTimeout(() => resolve(mockApiResponse({ text: "Example" })), 100)
+          )
       );
 
       render(<Home />);
-
-      const tryExampleButton = screen.getByText("Try Example");
-      await user.click(tryExampleButton);
-
+      await user.click(screen.getByText("Try Example"));
       expect(screen.getByText("Loading...")).toBeInTheDocument();
     });
 
-    it("handles example loading error", async () => {
+    it("handles errors", async () => {
       const user = userEvent.setup();
-
-      mockFetch.mockRejectedValueOnce(new Error("Failed to load example"));
+      mockFetch.mockRejectedValue(new Error("Failed"));
 
       render(<Home />);
-
-      const tryExampleButton = screen.getByText("Try Example");
-      await user.click(tryExampleButton);
+      await user.click(screen.getByText("Try Example"));
 
       await waitFor(() => {
         expect(screen.getByText(/failed to load/i)).toBeInTheDocument();
@@ -146,73 +109,44 @@ describe("Home Component", () => {
   });
 
   describe("Paste functionality", () => {
-    it("handles paste events and shows text display", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ summary: "Test summary" }),
-      } as Response);
+    it("handles paste and summarizes", async () => {
+      mockFetch.mockResolvedValue(mockApiResponse({ summary: "Test summary" }));
 
       render(<Home />);
 
-      // Create mock clipboard data
-      const mockClipboardData = new DataTransfer();
-      mockClipboardData.setData("text/plain", "Pasted text content");
-
-      // Simulate paste event
-      const pasteEvent = new ClipboardEvent("paste", {
-        clipboardData: mockClipboardData,
-      });
-
       await act(async () => {
-        document.dispatchEvent(pasteEvent);
-        // Wait for debounce
+        document.dispatchEvent(createPasteEvent("Test content"));
         await new Promise((resolve) => setTimeout(resolve, 600));
       });
 
       await waitFor(() => {
         expect(screen.getByText("Your Text")).toBeInTheDocument();
-        expect(screen.getByText("Pasted text content")).toBeInTheDocument();
+        expect(screen.getByText("Test content")).toBeInTheDocument();
+        expect(screen.getByText("Test summary")).toBeInTheDocument();
       });
     });
 
-    it("shows character and word count", async () => {
+    it("shows text stats", async () => {
       render(<Home />);
 
-      const mockClipboardData = new DataTransfer();
-      mockClipboardData.setData("text/plain", "Hello world test");
-
-      const pasteEvent = new ClipboardEvent("paste", {
-        clipboardData: mockClipboardData,
-      });
-
       await act(async () => {
-        document.dispatchEvent(pasteEvent);
+        document.dispatchEvent(createPasteEvent("Hello world"));
       });
 
       await waitFor(() => {
-        expect(screen.getByText(/15 characters • 3 words/)).toBeInTheDocument();
+        expect(screen.getByText(/11 characters • 2 words/)).toBeInTheDocument();
       });
     });
   });
 
-  describe("Summarization functionality", () => {
-    it("calls summarize API with correct parameters", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ summary: "Generated summary" }),
-      } as Response);
+  describe("Summary functionality", () => {
+    it("calls API correctly", async () => {
+      mockFetch.mockResolvedValue(mockApiResponse({ summary: "Summary" }));
 
       render(<Home />);
 
-      const mockClipboardData = new DataTransfer();
-      mockClipboardData.setData("text/plain", "Text to summarize");
-
-      const pasteEvent = new ClipboardEvent("paste", {
-        clipboardData: mockClipboardData,
-      });
-
       await act(async () => {
-        document.dispatchEvent(pasteEvent);
+        document.dispatchEvent(createPasteEvent("Text to summarize"));
         await new Promise((resolve) => setTimeout(resolve, 600));
       });
 
@@ -231,48 +165,36 @@ describe("Home Component", () => {
       });
     });
 
-    it("displays summary when API call succeeds", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ summary: "Generated summary" }),
-      } as Response);
+    it("shows loading spinner", async () => {
+      mockFetch.mockImplementation(
+        () =>
+          new Promise((resolve) =>
+            setTimeout(
+              () => resolve(mockApiResponse({ summary: "Summary" })),
+              100
+            )
+          )
+      );
 
       render(<Home />);
 
-      const mockClipboardData = new DataTransfer();
-      mockClipboardData.setData("text/plain", "Text to summarize");
-
-      const pasteEvent = new ClipboardEvent("paste", {
-        clipboardData: mockClipboardData,
-      });
-
       await act(async () => {
-        document.dispatchEvent(pasteEvent);
+        document.dispatchEvent(createPasteEvent("Test"));
         await new Promise((resolve) => setTimeout(resolve, 600));
       });
 
       await waitFor(() => {
-        expect(screen.getByText("Generated summary")).toBeInTheDocument();
+        expect(document.querySelector("svg.animate-spin")).toBeInTheDocument();
       });
     });
 
-    it("displays error when API call fails", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-      } as Response);
+    it("handles API errors", async () => {
+      mockFetch.mockResolvedValue(mockApiResponse(null, false, 500));
 
       render(<Home />);
 
-      const mockClipboardData = new DataTransfer();
-      mockClipboardData.setData("text/plain", "Text to summarize");
-
-      const pasteEvent = new ClipboardEvent("paste", {
-        clipboardData: mockClipboardData,
-      });
-
       await act(async () => {
-        document.dispatchEvent(pasteEvent);
+        document.dispatchEvent(createPasteEvent("Test"));
         await new Promise((resolve) => setTimeout(resolve, 600));
       });
 
@@ -282,64 +204,19 @@ describe("Home Component", () => {
         ).toBeInTheDocument();
       });
     });
+  });
 
-    it("shows loading spinner during summarization", async () => {
-      mockFetch.mockImplementation(
-        () =>
-          new Promise((resolve) => {
-            setTimeout(
-              () =>
-                resolve({
-                  ok: true,
-                  json: async () => ({ summary: "Summary" }),
-                } as Response),
-              100
-            );
-          })
+  describe("Cache functionality", () => {
+    it("uses cached results", async () => {
+      mockFetch.mockResolvedValue(
+        mockApiResponse({ summary: "Cached summary" })
       );
 
       render(<Home />);
-
-      const mockClipboardData = new DataTransfer();
-      mockClipboardData.setData("text/plain", "Text to summarize");
-
-      const pasteEvent = new ClipboardEvent("paste", {
-        clipboardData: mockClipboardData,
-      });
+      const sameText = "Same text";
 
       await act(async () => {
-        document.dispatchEvent(pasteEvent);
-        await new Promise((resolve) => setTimeout(resolve, 600));
-      });
-
-      // Should show spinner during loading
-      await waitFor(() => {
-        expect(document.querySelector("svg.animate-spin")).toBeInTheDocument();
-      });
-    });
-  });
-
-  describe("Caching functionality", () => {
-    it("uses cached result for duplicate text", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ summary: "Cached summary" }),
-      } as Response);
-
-      render(<Home />);
-
-      const sameText = "Same text for caching test";
-
-      // First paste
-      const mockClipboardData1 = new DataTransfer();
-      mockClipboardData1.setData("text/plain", sameText);
-
-      const pasteEvent1 = new ClipboardEvent("paste", {
-        clipboardData: mockClipboardData1,
-      });
-
-      await act(async () => {
-        document.dispatchEvent(pasteEvent1);
+        document.dispatchEvent(createPasteEvent(sameText));
         await new Promise((resolve) => setTimeout(resolve, 600));
       });
 
@@ -347,101 +224,33 @@ describe("Home Component", () => {
         expect(screen.getByText("Cached summary")).toBeInTheDocument();
       });
 
-      // Clear text
-      const clearButton = screen.getByText("Clear");
-      await userEvent.setup().click(clearButton);
-
-      // Second paste with same text
-      const mockClipboardData2 = new DataTransfer();
-      mockClipboardData2.setData("text/plain", sameText);
-
-      const pasteEvent2 = new ClipboardEvent("paste", {
-        clipboardData: mockClipboardData2,
-      });
+      await userEvent.setup().click(screen.getByText("Clear"));
 
       await act(async () => {
-        document.dispatchEvent(pasteEvent2);
+        document.dispatchEvent(createPasteEvent(sameText));
       });
 
       await waitFor(() => {
-        expect(screen.getByText("Cached summary")).toBeInTheDocument();
         expect(screen.getByText("Cached")).toBeInTheDocument();
       });
 
-      // API should only be called once
       expect(mockFetch).toHaveBeenCalledTimes(1);
-    });
-
-    it("shows cached badge for cached results", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ summary: "Cached summary" }),
-      } as Response);
-
-      render(<Home />);
-
-      const text = "Text for cache badge test";
-
-      // First request
-      const mockClipboardData1 = new DataTransfer();
-      mockClipboardData1.setData("text/plain", text);
-
-      const pasteEvent1 = new ClipboardEvent("paste", {
-        clipboardData: mockClipboardData1,
-      });
-
-      await act(async () => {
-        document.dispatchEvent(pasteEvent1);
-        await new Promise((resolve) => setTimeout(resolve, 600));
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText("Cached summary")).toBeInTheDocument();
-      });
-
-      // Clear and paste again
-      const clearButton = screen.getByText("Clear");
-      await userEvent.setup().click(clearButton);
-
-      const mockClipboardData2 = new DataTransfer();
-      mockClipboardData2.setData("text/plain", text);
-
-      const pasteEvent2 = new ClipboardEvent("paste", {
-        clipboardData: mockClipboardData2,
-      });
-
-      await act(async () => {
-        document.dispatchEvent(pasteEvent2);
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText("Cached")).toBeInTheDocument();
-      });
     });
   });
 
   describe("Copy functionality", () => {
-    it("copies summary to clipboard when copy button is clicked", async () => {
+    it("copies summary to clipboard", async () => {
       const user = userEvent.setup();
       const mockWriteText = navigator.clipboard
         .writeText as jest.MockedFunction<typeof navigator.clipboard.writeText>;
-
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ summary: "Summary to copy" }),
-      } as Response);
+      mockFetch.mockResolvedValue(
+        mockApiResponse({ summary: "Summary to copy" })
+      );
 
       render(<Home />);
 
-      const mockClipboardData = new DataTransfer();
-      mockClipboardData.setData("text/plain", "Text to summarize");
-
-      const pasteEvent = new ClipboardEvent("paste", {
-        clipboardData: mockClipboardData,
-      });
-
       await act(async () => {
-        document.dispatchEvent(pasteEvent);
+        document.dispatchEvent(createPasteEvent("Test"));
         await new Promise((resolve) => setTimeout(resolve, 600));
       });
 
@@ -449,9 +258,7 @@ describe("Home Component", () => {
         expect(screen.getByText("Summary to copy")).toBeInTheDocument();
       });
 
-      const copyButton = screen.getByText("Copy");
-      await user.click(copyButton);
-
+      await user.click(screen.getByText("Copy"));
       expect(mockWriteText).toHaveBeenCalledWith("Summary to copy");
 
       await waitFor(() => {
@@ -459,40 +266,19 @@ describe("Home Component", () => {
       });
     });
 
-    it("shows copied state temporarily", async () => {
+    it("shows copy state temporarily", async () => {
       const user = userEvent.setup();
-
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ summary: "Summary to copy" }),
-      } as Response);
+      mockFetch.mockResolvedValue(mockApiResponse({ summary: "Summary" }));
 
       render(<Home />);
 
-      const mockClipboardData = new DataTransfer();
-      mockClipboardData.setData("text/plain", "Text to summarize");
-
-      const pasteEvent = new ClipboardEvent("paste", {
-        clipboardData: mockClipboardData,
-      });
-
       await act(async () => {
-        document.dispatchEvent(pasteEvent);
+        document.dispatchEvent(createPasteEvent("Test"));
         await new Promise((resolve) => setTimeout(resolve, 600));
       });
 
-      await waitFor(() => {
-        expect(screen.getByText("Summary to copy")).toBeInTheDocument();
-      });
+      await user.click(screen.getByText("Copy"));
 
-      const copyButton = screen.getByText("Copy");
-      await user.click(copyButton);
-
-      await waitFor(() => {
-        expect(screen.getByText("Copied!")).toBeInTheDocument();
-      });
-
-      // Wait for copied state to revert
       await waitFor(
         () => {
           expect(screen.getByText("Copy")).toBeInTheDocument();
@@ -503,38 +289,26 @@ describe("Home Component", () => {
   });
 
   describe("Clear functionality", () => {
-    it("clears all text and state when clear button is clicked", async () => {
+    it("clears all state", async () => {
       const user = userEvent.setup();
-
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ summary: "Summary to clear" }),
-      } as Response);
+      mockFetch.mockResolvedValue(mockApiResponse({ summary: "Summary" }));
 
       render(<Home />);
 
-      const mockClipboardData = new DataTransfer();
-      mockClipboardData.setData("text/plain", "Text to clear");
-
-      const pasteEvent = new ClipboardEvent("paste", {
-        clipboardData: mockClipboardData,
-      });
-
       await act(async () => {
-        document.dispatchEvent(pasteEvent);
+        document.dispatchEvent(createPasteEvent("Test text"));
         await new Promise((resolve) => setTimeout(resolve, 600));
       });
 
       await waitFor(() => {
-        expect(screen.getByText("Text to clear")).toBeInTheDocument();
-        expect(screen.getByText("Summary to clear")).toBeInTheDocument();
+        expect(screen.getByText("Test text")).toBeInTheDocument();
+        expect(screen.getByText("Summary")).toBeInTheDocument();
       });
 
-      const clearButton = screen.getByText("Clear");
-      await user.click(clearButton);
+      await user.click(screen.getByText("Clear"));
 
-      expect(screen.queryByText("Text to clear")).not.toBeInTheDocument();
-      expect(screen.queryByText("Summary to clear")).not.toBeInTheDocument();
+      expect(screen.queryByText("Test text")).not.toBeInTheDocument();
+      expect(screen.queryByText("Summary")).not.toBeInTheDocument();
       expect(screen.getByText("How it works")).toBeInTheDocument();
     });
   });

@@ -8,12 +8,8 @@ interface UsePasteHandlerProps {
   summarize: (content: string) => Promise<void>;
 }
 
-export function usePasteHandler({ 
-  onPaste, 
-  onError, 
-  summarize 
-}: UsePasteHandlerProps) {
-  const timeout = useRef<NodeJS.Timeout | undefined>(undefined);
+export function usePasteHandler({ onPaste, onError, summarize }: UsePasteHandlerProps) {
+  const timeoutRef = useRef<NodeJS.Timeout>();
 
   const handlePaste = useCallback(
     (event: ClipboardEvent) => {
@@ -23,8 +19,10 @@ export function usePasteHandler({
       onPaste(content);
       onError("");
 
-      if (timeout.current) clearTimeout(timeout.current);
-      timeout.current = setTimeout(() => summarize(content), config.debounceDelay);
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      timeoutRef.current = setTimeout(() => summarize(content), config.debounceDelay);
     },
     [onPaste, onError, summarize]
   );
@@ -33,9 +31,9 @@ export function usePasteHandler({
     document.addEventListener("paste", handlePaste);
     return () => {
       document.removeEventListener("paste", handlePaste);
-      if (timeout.current) clearTimeout(timeout.current);
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
     };
   }, [handlePaste]);
-
-  return { timeout };
 } 
