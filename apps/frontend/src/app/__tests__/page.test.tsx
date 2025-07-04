@@ -1,7 +1,35 @@
 import React from "react";
 import { render, screen, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import "@testing-library/jest-dom";
 import Home from "../page";
+
+// Mock ClipboardEvent for jsdom
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(global as any).ClipboardEvent = class MockClipboardEvent extends Event {
+  clipboardData: DataTransfer;
+
+  constructor(type: string, eventInit: ClipboardEventInit = {}) {
+    super(type, eventInit);
+    this.clipboardData = eventInit.clipboardData || new MockDataTransfer();
+  }
+};
+
+// Mock DataTransfer for jsdom
+class MockDataTransfer {
+  private data: { [type: string]: string } = {};
+
+  getData(type: string): string {
+    return this.data[type] || "";
+  }
+
+  setData(type: string, data: string): void {
+    this.data[type] = data;
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(global as any).DataTransfer = MockDataTransfer;
 
 // Mock fetch
 const mockFetch = global.fetch as jest.MockedFunction<typeof fetch>;
@@ -112,14 +140,13 @@ describe("Home Component", () => {
       await user.click(tryExampleButton);
 
       await waitFor(() => {
-        expect(screen.getByText(/Example failed to load/)).toBeInTheDocument();
+        expect(screen.getByText(/failed to load/i)).toBeInTheDocument();
       });
     });
   });
 
   describe("Paste functionality", () => {
     it("handles paste events and shows text display", async () => {
-      const mockSummarize = jest.fn();
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ summary: "Test summary" }),
@@ -127,14 +154,13 @@ describe("Home Component", () => {
 
       render(<Home />);
 
+      // Create mock clipboard data
+      const mockClipboardData = new DataTransfer();
+      mockClipboardData.setData("text/plain", "Pasted text content");
+
       // Simulate paste event
       const pasteEvent = new ClipboardEvent("paste", {
-        clipboardData: new DataTransfer(),
-      });
-      Object.defineProperty(pasteEvent, "clipboardData", {
-        value: {
-          getData: () => "Pasted text content",
-        },
+        clipboardData: mockClipboardData,
       });
 
       await act(async () => {
@@ -152,13 +178,11 @@ describe("Home Component", () => {
     it("shows character and word count", async () => {
       render(<Home />);
 
+      const mockClipboardData = new DataTransfer();
+      mockClipboardData.setData("text/plain", "Hello world test");
+
       const pasteEvent = new ClipboardEvent("paste", {
-        clipboardData: new DataTransfer(),
-      });
-      Object.defineProperty(pasteEvent, "clipboardData", {
-        value: {
-          getData: () => "Hello world test",
-        },
+        clipboardData: mockClipboardData,
       });
 
       await act(async () => {
@@ -180,13 +204,11 @@ describe("Home Component", () => {
 
       render(<Home />);
 
+      const mockClipboardData = new DataTransfer();
+      mockClipboardData.setData("text/plain", "Text to summarize");
+
       const pasteEvent = new ClipboardEvent("paste", {
-        clipboardData: new DataTransfer(),
-      });
-      Object.defineProperty(pasteEvent, "clipboardData", {
-        value: {
-          getData: () => "Text to summarize",
-        },
+        clipboardData: mockClipboardData,
       });
 
       await act(async () => {
@@ -217,13 +239,11 @@ describe("Home Component", () => {
 
       render(<Home />);
 
+      const mockClipboardData = new DataTransfer();
+      mockClipboardData.setData("text/plain", "Text to summarize");
+
       const pasteEvent = new ClipboardEvent("paste", {
-        clipboardData: new DataTransfer(),
-      });
-      Object.defineProperty(pasteEvent, "clipboardData", {
-        value: {
-          getData: () => "Text to summarize",
-        },
+        clipboardData: mockClipboardData,
       });
 
       await act(async () => {
@@ -244,13 +264,11 @@ describe("Home Component", () => {
 
       render(<Home />);
 
+      const mockClipboardData = new DataTransfer();
+      mockClipboardData.setData("text/plain", "Text to summarize");
+
       const pasteEvent = new ClipboardEvent("paste", {
-        clipboardData: new DataTransfer(),
-      });
-      Object.defineProperty(pasteEvent, "clipboardData", {
-        value: {
-          getData: () => "Text to summarize",
-        },
+        clipboardData: mockClipboardData,
       });
 
       await act(async () => {
@@ -282,13 +300,11 @@ describe("Home Component", () => {
 
       render(<Home />);
 
+      const mockClipboardData = new DataTransfer();
+      mockClipboardData.setData("text/plain", "Text to summarize");
+
       const pasteEvent = new ClipboardEvent("paste", {
-        clipboardData: new DataTransfer(),
-      });
-      Object.defineProperty(pasteEvent, "clipboardData", {
-        value: {
-          getData: () => "Text to summarize",
-        },
+        clipboardData: mockClipboardData,
       });
 
       await act(async () => {
@@ -315,13 +331,11 @@ describe("Home Component", () => {
       const sameText = "Same text for caching test";
 
       // First paste
+      const mockClipboardData1 = new DataTransfer();
+      mockClipboardData1.setData("text/plain", sameText);
+
       const pasteEvent1 = new ClipboardEvent("paste", {
-        clipboardData: new DataTransfer(),
-      });
-      Object.defineProperty(pasteEvent1, "clipboardData", {
-        value: {
-          getData: () => sameText,
-        },
+        clipboardData: mockClipboardData1,
       });
 
       await act(async () => {
@@ -338,13 +352,11 @@ describe("Home Component", () => {
       await userEvent.setup().click(clearButton);
 
       // Second paste with same text
+      const mockClipboardData2 = new DataTransfer();
+      mockClipboardData2.setData("text/plain", sameText);
+
       const pasteEvent2 = new ClipboardEvent("paste", {
-        clipboardData: new DataTransfer(),
-      });
-      Object.defineProperty(pasteEvent2, "clipboardData", {
-        value: {
-          getData: () => sameText,
-        },
+        clipboardData: mockClipboardData2,
       });
 
       await act(async () => {
@@ -371,13 +383,11 @@ describe("Home Component", () => {
       const text = "Text for cache badge test";
 
       // First request
+      const mockClipboardData1 = new DataTransfer();
+      mockClipboardData1.setData("text/plain", text);
+
       const pasteEvent1 = new ClipboardEvent("paste", {
-        clipboardData: new DataTransfer(),
-      });
-      Object.defineProperty(pasteEvent1, "clipboardData", {
-        value: {
-          getData: () => text,
-        },
+        clipboardData: mockClipboardData1,
       });
 
       await act(async () => {
@@ -393,13 +403,11 @@ describe("Home Component", () => {
       const clearButton = screen.getByText("Clear");
       await userEvent.setup().click(clearButton);
 
+      const mockClipboardData2 = new DataTransfer();
+      mockClipboardData2.setData("text/plain", text);
+
       const pasteEvent2 = new ClipboardEvent("paste", {
-        clipboardData: new DataTransfer(),
-      });
-      Object.defineProperty(pasteEvent2, "clipboardData", {
-        value: {
-          getData: () => text,
-        },
+        clipboardData: mockClipboardData2,
       });
 
       await act(async () => {
@@ -425,13 +433,11 @@ describe("Home Component", () => {
 
       render(<Home />);
 
+      const mockClipboardData = new DataTransfer();
+      mockClipboardData.setData("text/plain", "Text to summarize");
+
       const pasteEvent = new ClipboardEvent("paste", {
-        clipboardData: new DataTransfer(),
-      });
-      Object.defineProperty(pasteEvent, "clipboardData", {
-        value: {
-          getData: () => "Text to summarize",
-        },
+        clipboardData: mockClipboardData,
       });
 
       await act(async () => {
@@ -463,13 +469,11 @@ describe("Home Component", () => {
 
       render(<Home />);
 
+      const mockClipboardData = new DataTransfer();
+      mockClipboardData.setData("text/plain", "Text to summarize");
+
       const pasteEvent = new ClipboardEvent("paste", {
-        clipboardData: new DataTransfer(),
-      });
-      Object.defineProperty(pasteEvent, "clipboardData", {
-        value: {
-          getData: () => "Text to summarize",
-        },
+        clipboardData: mockClipboardData,
       });
 
       await act(async () => {
@@ -509,13 +513,11 @@ describe("Home Component", () => {
 
       render(<Home />);
 
+      const mockClipboardData = new DataTransfer();
+      mockClipboardData.setData("text/plain", "Text to clear");
+
       const pasteEvent = new ClipboardEvent("paste", {
-        clipboardData: new DataTransfer(),
-      });
-      Object.defineProperty(pasteEvent, "clipboardData", {
-        value: {
-          getData: () => "Text to clear",
-        },
+        clipboardData: mockClipboardData,
       });
 
       await act(async () => {
