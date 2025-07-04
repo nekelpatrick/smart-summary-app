@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 
 // Mock the main component to extract individual components
 jest.mock("../page", () => {
-  const React = require("react");
+  const React = require("react"); // eslint-disable-line @typescript-eslint/no-require-imports
 
   const Spinner = ({
     size = 24,
