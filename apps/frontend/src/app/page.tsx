@@ -71,6 +71,41 @@ function Home() {
             />
           )}
         </div>
+
+        <footer className="mt-16 pt-8 border-t border-gray-200 text-center">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-sm text-gray-600">
+            <span>Built by</span>
+            <div className="flex items-center gap-4">
+              <a
+                href="https://patrick-nekel.vercel.app/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-blue-600 hover:text-blue-800 transition-colors"
+              >
+                nekeldev
+              </a>
+              <span className="text-gray-400">•</span>
+              <a
+                href="https://www.linkedin.com/in/nekelpatrick/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                LinkedIn
+              </a>
+              <span className="text-gray-400">•</span>
+              <a
+                href="https://www.buymeacoffee.com/nekeldev"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-yellow-600 hover:text-yellow-800 transition-colors flex items-center gap-1"
+              >
+                <span>☕</span>
+                Buy me a coffee
+              </a>
+            </div>
+          </div>
+        </footer>
       </main>
     </ErrorBoundary>
   );
