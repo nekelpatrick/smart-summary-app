@@ -109,19 +109,16 @@ cat > /home/ec2-user/smart-summary-app/setup-ssl.sh << 'EOF'
 echo "SSL setup script created. Edit with your email and run after DNS propagation."
 EOF
 
-# Create update script for easy deployments
-cat > /home/ec2-user/smart-summary-app/update-app.sh << 'EOF'
-#!/bin/bash
-cd /home/ec2-user/smart-summary-app
-git pull
-docker-compose down
-docker-compose up -d --build
-sudo systemctl restart nginx
-EOF
-
+# Make deployment scripts executable
+chmod +x /home/ec2-user/smart-summary-app/deploy.sh
 chmod +x /home/ec2-user/smart-summary-app/update-app.sh
+chmod +x /home/ec2-user/smart-summary-app/quick-update.sh
+chmod +x /home/ec2-user/smart-summary-app/status.sh
 chmod +x /home/ec2-user/smart-summary-app/setup-ssl.sh
+chown ec2-user:ec2-user /home/ec2-user/smart-summary-app/deploy.sh
 chown ec2-user:ec2-user /home/ec2-user/smart-summary-app/update-app.sh
+chown ec2-user:ec2-user /home/ec2-user/smart-summary-app/quick-update.sh
+chown ec2-user:ec2-user /home/ec2-user/smart-summary-app/status.sh
 chown ec2-user:ec2-user /home/ec2-user/smart-summary-app/setup-ssl.sh
 
 # Log completion
