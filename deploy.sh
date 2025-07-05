@@ -46,9 +46,13 @@ if [ -n "$(git status --porcelain)" ]; then
     warn "There are uncommitted changes in the repository"
 fi
 
-# Run the update script
-log "Running application update..."
-./update-app.sh
+# Run the rolling update (minimal downtime)
+log "Running rolling update deployment..."
 
-log "Deployment completed successfully!"
-log "Your application is now running the latest version." 
+# Use the rolling update script for minimal downtime
+if [ -f "./update-app-rolling.sh" ]; then
+    ./update-app-rolling.sh
+else
+    error "update-app-rolling.sh not found!"
+    exit 1
+fi 
