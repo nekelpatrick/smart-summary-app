@@ -29,6 +29,9 @@ yum install -y nodejs
 # Install Python 3 and pip
 yum install -y python3 python3-pip
 
+# Install nginx and certbot for SSL
+yum install -y nginx certbot python3-certbot-nginx
+
 # Create application directory
 mkdir -p /home/ec2-user/smart-summary-app
 cd /home/ec2-user/smart-summary-app
@@ -45,6 +48,34 @@ echo "OPENAI_API_KEY=$OPENAI_API_KEY" > .env
 
 # Build and start the application
 docker-compose up -d --build
+
+# Configure nginx
+cat > /etc/nginx/conf.d/smart-summary-app.conf << 'EOF'
+server {
+    listen 80;
+    server_name pastetosummary.com www.pastetosummary.com;
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    location /health {
+        proxy_pass http://localhost:8000/health;
+    }
+}
+EOF
+
+# Start and enable nginx
+systemctl start nginx
+systemctl enable nginx
 
 # Create a systemd service for automatic startup
 cat > /etc/systemd/system/smart-summary-app.service << 'EOF'
@@ -69,6 +100,15 @@ EOF
 # Enable the service
 systemctl enable smart-summary-app.service
 
+# Create SSL setup script
+cat > /home/ec2-user/smart-summary-app/setup-ssl.sh << 'EOF'
+#!/bin/bash
+# Run this script after DNS propagation (usually 24-48 hours after domain setup)
+# sudo certbot --nginx -d pastetosummary.com -d www.pastetosummary.com --non-interactive --agree-tos --email YOUR_EMAIL@example.com
+# sudo systemctl restart nginx
+echo "SSL setup script created. Edit with your email and run after DNS propagation."
+EOF
+
 # Create update script for easy deployments
 cat > /home/ec2-user/smart-summary-app/update-app.sh << 'EOF'
 #!/bin/bash
@@ -76,10 +116,13 @@ cd /home/ec2-user/smart-summary-app
 git pull
 docker-compose down
 docker-compose up -d --build
+sudo systemctl restart nginx
 EOF
 
 chmod +x /home/ec2-user/smart-summary-app/update-app.sh
+chmod +x /home/ec2-user/smart-summary-app/setup-ssl.sh
 chown ec2-user:ec2-user /home/ec2-user/smart-summary-app/update-app.sh
+chown ec2-user:ec2-user /home/ec2-user/smart-summary-app/setup-ssl.sh
 
 # Log completion
 echo "Smart Summary App setup completed at $(date)" >> /var/log/user-data.log 
