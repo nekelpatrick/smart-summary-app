@@ -5,7 +5,7 @@ export function Instructions({ onExample, loading }: InstructionsProps) {
   const steps = [
     "Find text you want to summarize",
     "Copy it (Ctrl+C or ⌘+C)",
-    "Paste anywhere on this page (Ctrl+V or ⌘+V)",
+    "Paste anywhere on this page (Ctrl+V or ⌘+V) or use the text box below",
     "Get your summary instantly!",
   ];
 
@@ -28,7 +28,7 @@ export function Instructions({ onExample, loading }: InstructionsProps) {
         <button
           onClick={onExample}
           disabled={loading}
-          className="flex items-center justify-center rounded-lg bg-green-500 px-6 py-3 text-white font-semibold hover:bg-green-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
+          className="flex items-center justify-center rounded-lg bg-green-500 px-6 py-3 min-h-[44px] text-white font-semibold hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 active:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-200"
         >
           {loading ? (
             <>

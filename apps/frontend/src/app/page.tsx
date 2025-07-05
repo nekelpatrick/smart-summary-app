@@ -5,6 +5,7 @@ import {
   Instructions,
   TextDisplay,
   ResultDisplay,
+  MobileTextInput,
   ErrorBoundary,
 } from "./components";
 import { useTextSummary, usePasteHandler } from "./hooks";
@@ -50,6 +51,16 @@ function Home() {
           </header>
 
           {!text && <Instructions onExample={loadExample} loading={loading} />}
+
+          {!text && (
+            <MobileTextInput
+              onSubmit={(content) => {
+                setText(content);
+                summarize(content);
+              }}
+              loading={loading}
+            />
+          )}
 
           {text && (
             <TextDisplay

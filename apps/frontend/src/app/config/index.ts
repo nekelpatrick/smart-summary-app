@@ -8,7 +8,7 @@ export const config = {
 } as const;
 
 export const endpoints = {
-  summarize: "/summarize",
+  summarize: "/summarize/stream",
   example: "/example",
   health: "/health",
 } as const; 

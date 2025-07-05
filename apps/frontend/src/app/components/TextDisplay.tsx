@@ -13,7 +13,7 @@ export function TextDisplay({ text, words, chars, onClear }: TextDisplayProps) {
           </span>
           <button
             onClick={onClear}
-            className="text-sm font-medium text-red-500 hover:text-red-700 rounded px-2 py-1"
+            className="text-sm font-medium text-red-500 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 active:text-red-800 rounded px-3 py-2 min-h-[44px] min-w-[44px] transition-colors duration-200"
           >
             Clear
           </button>

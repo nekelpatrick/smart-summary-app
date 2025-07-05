@@ -378,6 +378,22 @@ smart-summary-app/
 - Use a reverse proxy (nginx) for production
 - Configure proper CORS settings
 
+## Deployed Version
+
+🚀 **Live Demo**: Currently deployed on AWS EC2 with domain setup in progress
+
+- **Production URL**: `https://pastetosummary.com` (when domain is configured)
+- **Deployment Platform**: AWS EC2 with Docker Compose
+- **SSL Certificate**: AWS Certificate Manager
+- **Updates**: Automated via deployment scripts
+
+### Deployment Status
+
+- ✅ Backend API deployed and running
+- ✅ Frontend application deployed
+- 🔄 Domain configuration in progress
+- 🔄 SSL certificate setup in progress
+
 ## License
 
 MIT License

@@ -3,7 +3,6 @@ import { config, endpoints } from "../config";
 import { normalizeText, isValidText } from "../utils/text";
 import type { 
   SummaryRequest, 
-  SummaryResponse, 
   ExampleResponse,
   UseTextSummaryReturn 
 } from "../types";
@@ -54,15 +53,42 @@ export function useTextSummary(): UseTextSummaryReturn {
         throw new Error(`Unable to summarize (${response.status})`);
       }
 
-      const data: SummaryResponse = await response.json();
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let fullSummary = "";
+
+      if (!reader) {
+        throw new Error("Unable to read response stream");
+      }
+
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) break;
+        
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') {
+              break;
+            }
+            if (data.trim()) {
+              fullSummary += data;
+              setSummary(fullSummary);
+            }
+          }
+        }
+      }
 
       if (cacheRef.current.size >= config.cacheSize) {
         const firstKey = cacheRef.current.keys().next().value;
         if (firstKey) cacheRef.current.delete(firstKey);
       }
 
-      cacheRef.current.set(normalizedContent, data.summary);
-      setSummary(data.summary);
+      cacheRef.current.set(normalizedContent, fullSummary);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Please try again");
     } finally {
