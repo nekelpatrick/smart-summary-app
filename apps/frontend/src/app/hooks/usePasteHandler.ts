@@ -9,7 +9,7 @@ interface UsePasteHandlerProps {
 }
 
 export function usePasteHandler({ onPaste, onError, summarize }: UsePasteHandlerProps) {
-  const timeoutRef = useRef<NodeJS.Timeout>();
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handlePaste = useCallback(
     (event: ClipboardEvent) => {
