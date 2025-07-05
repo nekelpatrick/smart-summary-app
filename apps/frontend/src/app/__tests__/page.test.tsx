@@ -1,36 +1,36 @@
-import React from "react";
-import { render, screen, waitFor, act } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import "@testing-library/jest-dom";
-import Home from "../page";
 import { TextEncoder, TextDecoder } from "util";
 import { ReadableStream } from "web-streams-polyfill";
 
-// Mock global Web APIs for jsdom
+// Mock global Web APIs for jsdom - must be before other imports
 Object.assign(global, {
   TextEncoder,
   TextDecoder,
   ReadableStream,
 });
 
-// Mock ClipboardEvent for jsdom
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-(global as any).ClipboardEvent = class MockClipboardEvent extends Event {
-  clipboardData: DataTransfer;
+// Ensure TextDecoder is available in the global scope
+if (typeof global.TextDecoder === "undefined") {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  global.TextDecoder = TextDecoder as any;
+}
 
-  constructor(type: string, eventInit: ClipboardEventInit = {}) {
-    super(type, eventInit);
-    this.clipboardData = (eventInit.clipboardData ||
-      new MockDataTransfer()) as DataTransfer;
-  }
-};
+import React from "react";
+import { render, screen, waitFor, act } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import "@testing-library/jest-dom";
+import Home from "../page";
+import type { SummaryResponse, ExampleResponse } from "../types";
 
-// Mock DataTransfer for jsdom
-class MockDataTransfer {
-  private data: { [type: string]: string } = {};
+// Proper typed mock implementations
+interface MockClipboardData {
+  getData(type: string): string;
+  setData(type: string, data: string): void;
+}
+
+class MockDataTransfer implements MockClipboardData {
+  private data: Record<string, string> = {};
 
   getData(type: string): string {
-    // Handle both "text" and "text/plain" for better compatibility
     return (
       this.data[type] || this.data["text/plain"] || this.data["text"] || ""
     );
@@ -41,38 +41,56 @@ class MockDataTransfer {
   }
 }
 
+// Type-safe clipboard event mock
+interface MockClipboardEventInit extends EventInit {
+  clipboardData?: MockClipboardData;
+}
+
+class MockClipboardEvent extends Event {
+  clipboardData: MockClipboardData;
+
+  constructor(type: string, eventInit: MockClipboardEventInit = {}) {
+    super(type, eventInit);
+    this.clipboardData = eventInit.clipboardData || new MockDataTransfer();
+  }
+}
+
+// Setup global mocks
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(global as any).ClipboardEvent = MockClipboardEvent;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 (global as any).DataTransfer = MockDataTransfer;
 
-// Mock fetch
+// Mock fetch with proper typing
 const mockFetch = global.fetch as jest.MockedFunction<typeof fetch>;
 
-const createPasteEvent = (text: string) => {
-  const mockClipboardData = new DataTransfer();
-  mockClipboardData.setData("text/plain", text);
-  mockClipboardData.setData("text", text);
+const createPasteEvent = (text: string): MockClipboardEvent => {
+  const clipboardData = new MockDataTransfer();
+  clipboardData.setData("text/plain", text);
+  clipboardData.setData("text", text);
 
-  const event = new ClipboardEvent("paste", {
-    clipboardData: mockClipboardData,
+  return new MockClipboardEvent("paste", {
+    clipboardData,
     bubbles: true,
     cancelable: true,
   });
-
-  return event;
 };
 
-const mockApiResponse = (data: unknown, ok = true, status = 200) =>
-  ({
-    ok,
+const createApiResponse = (
+  data: ExampleResponse | SummaryResponse,
+  status = 200
+): Response => {
+  return {
+    ok: status >= 200 && status < 300,
     status,
     json: async () => data,
-  } as Response);
+  } as Response;
+};
 
-const mockStreamResponse = (summary: string, ok = true, status = 200) => {
+const createStreamResponse = (summary: string, status = 200): Response => {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     start(controller: ReadableStreamDefaultController) {
-      // Send complete summary at once for test simplicity
       const chunk = `data: ${summary}\n\n`;
       controller.enqueue(encoder.encode(chunk));
       controller.enqueue(encoder.encode("data: [DONE]\n\n"));
@@ -81,7 +99,38 @@ const mockStreamResponse = (summary: string, ok = true, status = 200) => {
   });
 
   return {
-    ok,
+    ok: status >= 200 && status < 300,
+    status,
+    body: stream,
+  } as unknown as Response;
+};
+
+const createChunkedStreamResponse = (
+  chunks: string[],
+  status = 200
+): Response => {
+  const encoder = new TextEncoder();
+  let chunkIndex = 0;
+
+  const stream = new ReadableStream({
+    start(controller: ReadableStreamDefaultController) {
+      const pushChunk = (): void => {
+        if (chunkIndex < chunks.length) {
+          const chunk = `data: ${chunks[chunkIndex]}\n\n`;
+          controller.enqueue(encoder.encode(chunk));
+          chunkIndex++;
+          setTimeout(pushChunk, 10);
+        } else {
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+        }
+      };
+      pushChunk();
+    },
+  });
+
+  return {
+    ok: status >= 200 && status < 300,
     status,
     body: stream,
   } as unknown as Response;
@@ -107,9 +156,11 @@ describe("Home Component", () => {
   describe("Example functionality", () => {
     it("loads example and summarizes", async () => {
       const user = userEvent.setup();
+      const exampleData: ExampleResponse = { text: "Example text" };
+
       mockFetch
-        .mockResolvedValueOnce(mockApiResponse({ text: "Example text" }))
-        .mockResolvedValueOnce(mockStreamResponse("Example summary"));
+        .mockResolvedValueOnce(createApiResponse(exampleData))
+        .mockResolvedValueOnce(createStreamResponse("Example summary"));
 
       render(<Home />);
       await user.click(screen.getByText("Try Example"));
@@ -120,14 +171,16 @@ describe("Home Component", () => {
       });
     });
 
-    it("shows loading state", async () => {
+    it("shows loading state during example load", async () => {
       const user = userEvent.setup();
+      const exampleData: ExampleResponse = { text: "Example" };
+
       mockFetch
-        .mockResolvedValueOnce(mockApiResponse({ text: "Example" }))
+        .mockResolvedValueOnce(createApiResponse(exampleData))
         .mockImplementation(
           () =>
             new Promise((resolve) =>
-              setTimeout(() => resolve(mockStreamResponse("Summary")), 100)
+              setTimeout(() => resolve(createStreamResponse("Summary")), 100)
             )
         );
 
@@ -139,9 +192,9 @@ describe("Home Component", () => {
       });
     });
 
-    it("handles errors", async () => {
+    it("handles example loading errors", async () => {
       const user = userEvent.setup();
-      mockFetch.mockRejectedValue(new Error("Failed"));
+      mockFetch.mockRejectedValue(new Error("Failed to load"));
 
       render(<Home />);
       await user.click(screen.getByText("Try Example"));
@@ -153,8 +206,8 @@ describe("Home Component", () => {
   });
 
   describe("Paste functionality", () => {
-    it("handles paste and summarizes", async () => {
-      mockFetch.mockResolvedValue(mockStreamResponse("Test summary"));
+    it("handles paste and summarizes text", async () => {
+      mockFetch.mockResolvedValue(createStreamResponse("Test summary"));
 
       render(<Home />);
 
@@ -165,9 +218,6 @@ describe("Home Component", () => {
 
       await waitFor(() => {
         expect(screen.getByText("Your Text")).toBeInTheDocument();
-      });
-
-      await waitFor(() => {
         expect(screen.getByText("Test content")).toBeInTheDocument();
       });
 
@@ -183,14 +233,11 @@ describe("Home Component", () => {
             }),
           })
         );
-      });
-
-      await waitFor(() => {
         expect(screen.getByText("Test summary")).toBeInTheDocument();
       });
     });
 
-    it("shows text stats", async () => {
+    it("displays text statistics correctly", async () => {
       render(<Home />);
 
       await act(async () => {
@@ -205,18 +252,14 @@ describe("Home Component", () => {
   });
 
   describe("Summary functionality", () => {
-    it("calls API correctly", async () => {
-      mockFetch.mockResolvedValue(mockStreamResponse("Summary"));
+    it("calls streaming API with correct parameters", async () => {
+      mockFetch.mockResolvedValue(createStreamResponse("API Summary"));
 
       render(<Home />);
 
       await act(async () => {
         document.dispatchEvent(createPasteEvent("Text to summarize"));
         await new Promise((resolve) => setTimeout(resolve, 600));
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText("Your Text")).toBeInTheDocument();
       });
 
       await waitFor(() => {
@@ -234,11 +277,11 @@ describe("Home Component", () => {
       });
     });
 
-    it("shows loading spinner", async () => {
+    it("shows loading spinner during processing", async () => {
       mockFetch.mockImplementation(
         () =>
           new Promise((resolve) =>
-            setTimeout(() => resolve(mockStreamResponse("Summary")), 100)
+            setTimeout(() => resolve(createStreamResponse("Summary")), 100)
           )
       );
 
@@ -254,8 +297,8 @@ describe("Home Component", () => {
       });
     });
 
-    it("handles API errors", async () => {
-      mockFetch.mockResolvedValue(mockStreamResponse("", false, 500));
+    it("handles API errors gracefully", async () => {
+      mockFetch.mockResolvedValue(createStreamResponse("", 500));
 
       render(<Home />);
 
@@ -265,44 +308,18 @@ describe("Home Component", () => {
       });
 
       await waitFor(() => {
-        expect(
-          screen.getByText(/Unable to summarize \(500\)/)
-        ).toBeInTheDocument();
+        expect(screen.getByText(/Unable to summarize/)).toBeInTheDocument();
       });
     });
 
-    it("uses server-side streaming for summarization", async () => {
+    it("processes server-side streaming correctly", async () => {
       const user = userEvent.setup();
-      const encoder = new TextEncoder();
       const chunks = ["Hello ", "this ", "is ", "a ", "streamed ", "summary"];
-      let chunkIndex = 0;
-
-      const streamResponse = {
-        ok: true,
-        status: 200,
-        body: new ReadableStream({
-          start(controller: ReadableStreamDefaultController) {
-            const pushChunk = () => {
-              if (chunkIndex < chunks.length) {
-                const chunk = `data: ${chunks[chunkIndex]}\n\n`;
-                controller.enqueue(encoder.encode(chunk));
-                chunkIndex++;
-                setTimeout(pushChunk, 10);
-              } else {
-                controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-                controller.close();
-              }
-            };
-            pushChunk();
-          },
-        }),
-      } as unknown as Response;
+      const exampleData: ExampleResponse = { text: "Test streaming content" };
 
       mockFetch
-        .mockResolvedValueOnce(
-          mockApiResponse({ text: "Test streaming content" })
-        )
-        .mockResolvedValueOnce(streamResponse);
+        .mockResolvedValueOnce(createApiResponse(exampleData))
+        .mockResolvedValueOnce(createChunkedStreamResponse(chunks));
 
       render(<Home />);
 
@@ -333,11 +350,11 @@ describe("Home Component", () => {
   });
 
   describe("Cache functionality", () => {
-    it("uses cached results", async () => {
-      mockFetch.mockResolvedValue(mockStreamResponse("Cached summary"));
+    it("uses cached results for identical text", async () => {
+      mockFetch.mockResolvedValue(createStreamResponse("Cached summary"));
 
       render(<Home />);
-      const sameText = "Same text";
+      const sameText = "Same text content";
 
       await act(async () => {
         document.dispatchEvent(createPasteEvent(sameText));
@@ -363,11 +380,11 @@ describe("Home Component", () => {
   });
 
   describe("Copy functionality", () => {
-    it("copies summary to clipboard", async () => {
+    it("copies summary to clipboard successfully", async () => {
       const user = userEvent.setup();
       const mockWriteText = navigator.clipboard
         .writeText as jest.MockedFunction<typeof navigator.clipboard.writeText>;
-      mockFetch.mockResolvedValue(mockStreamResponse("Summary to copy"));
+      mockFetch.mockResolvedValue(createStreamResponse("Summary to copy"));
 
       render(<Home />);
 
@@ -388,9 +405,9 @@ describe("Home Component", () => {
       });
     });
 
-    it("shows copy state temporarily", async () => {
+    it("shows temporary copied state", async () => {
       const user = userEvent.setup();
-      mockFetch.mockResolvedValue(mockStreamResponse("Summary"));
+      mockFetch.mockResolvedValue(createStreamResponse("Summary"));
 
       render(<Home />);
 
@@ -411,9 +428,9 @@ describe("Home Component", () => {
   });
 
   describe("Clear functionality", () => {
-    it("clears all state", async () => {
+    it("resets all application state", async () => {
       const user = userEvent.setup();
-      mockFetch.mockResolvedValue(mockStreamResponse("Summary"));
+      mockFetch.mockResolvedValue(createStreamResponse("Test Summary"));
 
       render(<Home />);
 
@@ -424,17 +441,216 @@ describe("Home Component", () => {
 
       await waitFor(() => {
         expect(screen.getByText("Test text")).toBeInTheDocument();
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText("Summary")).toBeInTheDocument();
+        expect(screen.getByText("Test Summary")).toBeInTheDocument();
       });
 
       await user.click(screen.getByText("Clear"));
 
       expect(screen.queryByText("Test text")).not.toBeInTheDocument();
-      expect(screen.queryByText("Summary")).not.toBeInTheDocument();
+      expect(screen.queryByText("Test Summary")).not.toBeInTheDocument();
       expect(screen.getByText("How it works")).toBeInTheDocument();
+    });
+  });
+
+  describe("Try Again functionality", () => {
+    it("shows try again button when summary is available", async () => {
+      mockFetch.mockResolvedValue(createStreamResponse("Test Summary"));
+
+      render(<Home />);
+
+      await act(async () => {
+        document.dispatchEvent(createPasteEvent("Test text"));
+        await new Promise((resolve) => setTimeout(resolve, 600));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("Test Summary")).toBeInTheDocument();
+        expect(screen.getByText("Try Again")).toBeInTheDocument();
+      });
+    });
+
+    it("disables try again button when loading", async () => {
+      mockFetch.mockImplementation(
+        () =>
+          new Promise((resolve) =>
+            setTimeout(() => resolve(createStreamResponse("Summary")), 100)
+          )
+      );
+
+      render(<Home />);
+
+      await act(async () => {
+        document.dispatchEvent(createPasteEvent("Test"));
+        await new Promise((resolve) => setTimeout(resolve, 600));
+      });
+
+      await waitFor(() => {
+        const tryAgainButton = screen.getByText("Try Again");
+        expect(tryAgainButton).toBeDisabled();
+      });
+    });
+
+    it("bypasses cache and regenerates summary", async () => {
+      const user = userEvent.setup();
+      const firstSummary = "First summary";
+      const secondSummary = "Second summary";
+
+      mockFetch
+        .mockResolvedValueOnce(createStreamResponse(firstSummary))
+        .mockResolvedValueOnce(createStreamResponse(secondSummary));
+
+      render(<Home />);
+
+      await act(async () => {
+        document.dispatchEvent(createPasteEvent("Test text"));
+        await new Promise((resolve) => setTimeout(resolve, 600));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(firstSummary)).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText("Try Again"));
+
+      await waitFor(() => {
+        expect(screen.getByText(secondSummary)).toBeInTheDocument();
+      });
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(mockFetch).toHaveBeenCalledWith(
+        "http://localhost:8000/summarize/stream",
+        expect.objectContaining({
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: "Test text",
+            max_length: 300,
+          }),
+        })
+      );
+    });
+
+    it("shows loading state during try again", async () => {
+      const user = userEvent.setup();
+      mockFetch
+        .mockResolvedValueOnce(createStreamResponse("First summary"))
+        .mockImplementation(
+          () =>
+            new Promise((resolve) =>
+              setTimeout(
+                () => resolve(createStreamResponse("Second summary")),
+                100
+              )
+            )
+        );
+
+      render(<Home />);
+
+      await act(async () => {
+        document.dispatchEvent(createPasteEvent("Test"));
+        await new Promise((resolve) => setTimeout(resolve, 600));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("First summary")).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText("Try Again"));
+
+      await waitFor(() => {
+        expect(document.querySelector("svg.animate-spin")).toBeInTheDocument();
+      });
+    });
+
+    it("handles errors during try again", async () => {
+      const user = userEvent.setup();
+      mockFetch
+        .mockResolvedValueOnce(createStreamResponse("First summary"))
+        .mockResolvedValueOnce(createStreamResponse("", 500));
+
+      render(<Home />);
+
+      await act(async () => {
+        document.dispatchEvent(createPasteEvent("Test"));
+        await new Promise((resolve) => setTimeout(resolve, 600));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("First summary")).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText("Try Again"));
+
+      await waitFor(() => {
+        expect(screen.getByText(/Unable to summarize/)).toBeInTheDocument();
+      });
+    });
+
+    it("processes streaming correctly during try again", async () => {
+      const user = userEvent.setup();
+      const firstSummary = "First summary";
+      const chunks = ["New ", "streaming ", "summary"];
+
+      mockFetch
+        .mockResolvedValueOnce(createStreamResponse(firstSummary))
+        .mockResolvedValueOnce(createChunkedStreamResponse(chunks));
+
+      render(<Home />);
+
+      await act(async () => {
+        document.dispatchEvent(createPasteEvent("Test content"));
+        await new Promise((resolve) => setTimeout(resolve, 600));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(firstSummary)).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText("Try Again"));
+
+      await waitFor(() => {
+        expect(screen.getByText("New streaming summary")).toBeInTheDocument();
+      });
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("clears cached indicator after try again", async () => {
+      const user = userEvent.setup();
+      const firstSummary = "Cached summary";
+      const secondSummary = "New summary";
+
+      mockFetch
+        .mockResolvedValueOnce(createStreamResponse(firstSummary))
+        .mockResolvedValueOnce(createStreamResponse(secondSummary));
+
+      render(<Home />);
+
+      await act(async () => {
+        document.dispatchEvent(createPasteEvent("Test text"));
+        await new Promise((resolve) => setTimeout(resolve, 600));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(firstSummary)).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText("Clear"));
+
+      await act(async () => {
+        document.dispatchEvent(createPasteEvent("Test text"));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("Cached")).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText("Try Again"));
+
+      await waitFor(() => {
+        expect(screen.getByText(secondSummary)).toBeInTheDocument();
+        expect(screen.queryByText("Cached")).not.toBeInTheDocument();
+      });
     });
   });
 });

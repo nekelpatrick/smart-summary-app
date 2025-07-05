@@ -24,6 +24,7 @@ function Home() {
     copyToClipboard,
     reset,
     loadExample,
+    tryAgain,
   } = useTextSummary();
 
   usePasteHandler({
@@ -79,6 +80,7 @@ function Home() {
               copied={copied}
               isCached={isCached}
               onCopy={copyToClipboard}
+              onTryAgain={tryAgain}
             />
           )}
         </div>

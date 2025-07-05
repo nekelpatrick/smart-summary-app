@@ -1,9 +1,5 @@
 import { useState, useRef } from "react";
-
-interface MobileTextInputProps {
-  onSubmit: (text: string) => void;
-  loading: boolean;
-}
+import type { MobileTextInputProps } from "../types";
 
 export function MobileTextInput({ onSubmit, loading }: MobileTextInputProps) {
   const [text, setText] = useState("");

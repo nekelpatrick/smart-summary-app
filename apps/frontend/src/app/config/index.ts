@@ -1,11 +1,15 @@
-export const config = {
+import type { AppConfig } from "../types";
+
+export const config: AppConfig = {
   apiUrl: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000",
   defaultMaxLength: 300,
   cacheSize: 50,
   debounceDelay: 500,
   copiedFeedbackDuration: 2000,
   cachedFeedbackDuration: 2000,
-} as const;
+  minTextLength: 10,
+  maxTextLength: 50000,
+};
 
 export const endpoints = {
   summarize: "/summarize/stream",

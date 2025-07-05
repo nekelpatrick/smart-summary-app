@@ -1,12 +1,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { config } from "../config";
 import { isValidText } from "../utils/text";
-
-interface UsePasteHandlerProps {
-  onPaste: (content: string) => void;
-  onError: (error: string) => void;
-  summarize: (content: string) => Promise<void>;
-}
+import type { UsePasteHandlerProps } from "../types";
 
 export function usePasteHandler({ onPaste, onError, summarize }: UsePasteHandlerProps) {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
