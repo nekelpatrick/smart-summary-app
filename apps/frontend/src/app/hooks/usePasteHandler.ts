@@ -8,9 +8,28 @@ export function usePasteHandler({ onPaste, onError, summarize }: UsePasteHandler
 
   const handlePaste = useCallback(
     (event: ClipboardEvent) => {
-      const content = event.clipboardData?.getData("text");
-      if (!content || !isValidText(content)) return;
+      const target = event.target as HTMLElement;
+      
+      // Only handle paste events that occur outside of text inputs/textareas
+      if (
+        target && 
+        (target.tagName === "INPUT" || 
+         target.tagName === "TEXTAREA" || 
+         target.isContentEditable ||
+         target.closest("input, textarea, [contenteditable]"))
+      ) {
+        return;
+      }
 
+      const content = event.clipboardData?.getData("text");
+      if (!content || !isValidText(content)) {
+        onError("Invalid text content");
+        return;
+      }
+
+      // Prevent the default paste behavior since we're handling it
+      event.preventDefault();
+      
       onPaste(content);
       onError("");
 

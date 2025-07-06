@@ -1,8 +1,6 @@
 services:
   backend:
-    build:
-      context: ./apps/backend
-      dockerfile: Dockerfile
+    image: smart-summary-backend:latest
     container_name: smart-summary-backend
     ports:
       - "8000:8000"
@@ -23,9 +21,7 @@ services:
       start_period: 40s
 
   frontend:
-    build:
-      context: ./apps/frontend
-      dockerfile: Dockerfile
+    image: smart-summary-frontend:latest
     container_name: smart-summary-frontend
     ports:
       - "3000:3000"

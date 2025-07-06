@@ -46,6 +46,13 @@ export default function ApiKeyInput({
     }
   };
 
+  const handleFormSubmit = (e: React.FormEvent): void => {
+    e.preventDefault();
+    if (inputValue.trim() && isProviderEnabled() && !validating) {
+      handleValidate();
+    }
+  };
+
   const handleClear = (): void => {
     setInputValue("");
     onApiKeyChange("");
@@ -216,31 +223,33 @@ export default function ApiKeyInput({
         <label htmlFor="api-key" className="text-sm font-medium text-gray-700">
           API Key (Optional)
         </label>
-        <div className="relative">
-          <input
-            id="api-key"
-            type={showKey ? "text" : "password"}
-            value={inputValue}
-            onChange={handleInputChange}
-            placeholder={getPlaceholderText()}
-            disabled={!isProviderEnabled() || validating}
-            className="w-full px-3 py-2 pr-20 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-gray-900 disabled:bg-gray-50 disabled:text-gray-500"
-          />
-          {inputValue && (
-            <button
-              type="button"
-              onClick={() => setShowKey(!showKey)}
-              className="absolute right-10 top-2.5 text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              {showKey ? "🙈" : "👁️"}
-            </button>
-          )}
-          {validationStatus && (
-            <div className="absolute right-3 top-2.5 text-sm">
-              {getValidationIcon()}
-            </div>
-          )}
-        </div>
+        <form onSubmit={handleFormSubmit}>
+          <div className="relative">
+            <input
+              id="api-key"
+              type={showKey ? "text" : "password"}
+              value={inputValue}
+              onChange={handleInputChange}
+              placeholder={getPlaceholderText()}
+              disabled={!isProviderEnabled() || validating}
+              className="w-full px-3 py-2 pr-20 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-gray-900 disabled:bg-gray-50 disabled:text-gray-500"
+            />
+            {inputValue && (
+              <button
+                type="button"
+                onClick={() => setShowKey(!showKey)}
+                className="absolute right-10 top-2.5 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                {showKey ? "🙈" : "👁️"}
+              </button>
+            )}
+            {validationStatus && (
+              <div className="absolute right-3 top-2.5 text-sm">
+                {getValidationIcon()}
+              </div>
+            )}
+          </div>
+        </form>
         {validationStatus && (
           <div className={`text-xs ${getValidationColor()}`}>
             {getValidationMessage()}

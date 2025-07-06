@@ -29,6 +29,26 @@ class LLMService:
             self.client = AsyncOpenAI(api_key=default_key)
         return self.client
 
+    def _create_summary_prompt(self, text: str, max_length: int) -> str:
+        target_words = max_length // 4 if max_length < 200 else max_length // 3
+
+        return f"""You are an expert at creating concise, high-quality summaries. Your task is to distill the following text into its most essential elements.
+
+REQUIREMENTS:
+- Use approximately {target_words} words (strict limit)
+- Rewrite completely - don't copy phrases verbatim
+- Focus on key insights, decisions, and outcomes
+- Use active voice and clear, direct language
+- Eliminate all filler words and redundancy
+- If it's meeting notes: extract decisions, action items, and key points
+- If it's an article: focus on main arguments and conclusions
+- If it's a document: highlight critical information and next steps
+
+ORIGINAL TEXT:
+{text}
+
+CONCISE SUMMARY:"""
+
     async def validate_api_key(self, api_key: str, provider: LLMProvider = LLMProvider.OPENAI) -> bool:
         if provider != LLMProvider.OPENAI:
             return False
@@ -60,7 +80,7 @@ class LLMService:
         if not text.strip():
             raise ValueError("Text cannot be empty")
 
-        prompt = f"Summarize the following text in approximately {max_length} words:\n\n{text}"
+        prompt = self._create_summary_prompt(text, max_length)
 
         try:
             client = self._get_client(api_key)
@@ -68,8 +88,10 @@ class LLMService:
             response = await client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=max_length * 2,
-                temperature=0.7
+                max_tokens=max_length,
+                temperature=0.3,
+                presence_penalty=0.6,
+                frequency_penalty=0.5
             )
 
             return response.choices[0].message.content.strip()
@@ -98,7 +120,7 @@ class LLMService:
         if not text.strip():
             raise ValueError("Text cannot be empty")
 
-        prompt = f"Summarize the following text in approximately {max_length} words:\n\n{text}"
+        prompt = self._create_summary_prompt(text, max_length)
 
         try:
             client = self._get_client(api_key)
@@ -106,8 +128,10 @@ class LLMService:
             response = await client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=max_length * 2,
-                temperature=0.7,
+                max_tokens=max_length,
+                temperature=0.3,
+                presence_penalty=0.6,
+                frequency_penalty=0.5,
                 stream=True
             )
 
