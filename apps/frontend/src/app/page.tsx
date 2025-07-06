@@ -104,7 +104,7 @@ function Home(): React.ReactElement {
       setIsProcessing(true);
       setTimeout(scrollToResults, 100);
       await loadExample();
-      showInfo("Example loaded! Processing...");
+      showInfo("Example loaded and summarized!");
     } catch {
       showError("Failed to load example");
       setIsProcessing(false);
@@ -117,10 +117,12 @@ function Home(): React.ReactElement {
   usePasteHandler({
     onPaste: (content: string) => {
       setText(content);
-      showInfo("Text pasted! Processing...");
+      showInfo("Text pasted anywhere on the page! Processing...");
     },
     onError: (error: string) => {
-      showError(`Paste failed: ${error}`);
+      if (error) {
+        showError(`Paste failed: ${error}`);
+      }
     },
     summarize: handleSummarize,
   });
@@ -130,7 +132,7 @@ function Home(): React.ReactElement {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-100">
         <div className="container mx-auto">
           <div className="relative">
-            <div className="pt-8 pb-6 px-4 text-center relative">
+            <div className="pt-6 pb-4 px-4 text-center relative">
               <div className="absolute inset-0 overflow-hidden pointer-events-none">
                 <div className="absolute -top-4 -left-4 w-72 h-72 bg-blue-400/10 rounded-full blur-3xl" />
                 <div className="absolute -top-8 -right-8 w-96 h-96 bg-purple-400/10 rounded-full blur-3xl" />
@@ -138,19 +140,19 @@ function Home(): React.ReactElement {
               </div>
 
               <div className="relative z-10">
-                <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent mb-3">
+                <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent mb-2">
                   Paste to Summary
                 </h1>
-                <p className="text-lg text-gray-600 mb-6 max-w-2xl mx-auto">
+                <p className="text-base text-gray-600 mb-5 max-w-2xl mx-auto">
                   Transform lengthy text into concise, meaningful summaries with
                   AI-powered intelligence
                 </p>
 
                 {(loading || isProcessing) && (
-                  <div className="mb-4 animate-in fade-in slide-in-from-top duration-300">
-                    <div className="inline-flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2">
-                      <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                      <span className="text-blue-700 font-medium">
+                  <div className="mb-3 animate-in fade-in slide-in-from-top duration-300">
+                    <div className="inline-flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5">
+                      <div className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                      <span className="text-blue-700 font-medium text-sm">
                         Processing your text...
                       </span>
                     </div>
@@ -190,12 +192,12 @@ function Home(): React.ReactElement {
               </div>
             </div>
 
-            <div className="px-4 pb-12">
-              <div className="max-w-4xl mx-auto space-y-6">
+            <div className="px-4 pb-8">
+              <div className="max-w-4xl mx-auto space-y-4">
                 <ErrorBoundary>
                   <Instructions
                     onExample={handleLoadExample}
-                    loading={loading}
+                    loading={loading || isProcessing}
                   />
 
                   {text && (
@@ -232,6 +234,54 @@ function Home(): React.ReactElement {
             </div>
           </div>
         </div>
+
+        {/* Footer */}
+        <footer className="py-6 px-4 border-t border-gray-200/50 bg-white/30 backdrop-blur-sm">
+          <div className="max-w-4xl mx-auto text-center">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 text-sm text-gray-600">
+              <span className="flex items-center gap-1">
+                Made with
+                <span className="text-red-500 animate-pulse">❤️</span>
+                by
+              </span>
+              <div className="flex items-center gap-4">
+                <a
+                  href="https://patrick-nekel.vercel.app/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+                >
+                  nekeldev
+                </a>
+                <span className="text-gray-400">•</span>
+                <a
+                  href="https://www.linkedin.com/in/nekelpatrick/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+                  </svg>
+                  LinkedIn
+                </a>
+                <span className="text-gray-400">•</span>
+                <a
+                  href="https://www.buymeacoffee.com/nekeldev"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-yellow-600 hover:text-yellow-700 transition-colors flex items-center gap-1"
+                >
+                  ☕ Buy me a coffee
+                </a>
+              </div>
+            </div>
+          </div>
+        </footer>
       </div>
 
       <ToastContainer toasts={toasts} onRemove={removeToast} />

@@ -2,12 +2,11 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { config } from "../config";
 import { normalizeText, isValidText } from "../utils/text";
 import { apiService } from "../services/apiService";
-import { LLMProvider, ProviderStatus } from "../types";
+import { LLMProvider, ProviderStatus, ApiError } from "../types";
 import type { 
   SummaryRequest, 
   UseTextSummaryReturn,
   SummaryCache,
-  ApiError,
   ApiKeyValidationStatus,
   ApiKeyValidationRequest,
   ProviderInfo
@@ -48,16 +47,15 @@ export function useTextSummary(): UseTextSummaryReturn {
       return error;
     }
     
-    if (error && typeof error === 'object' && 'detail' in error) {
-      const apiError = error as ApiError;
-      return apiError.detail;
+    if (error instanceof ApiError) {
+      return error.message;
     }
     
     if (error instanceof Error) {
       return error.message;
     }
     
-    return "An unexpected error occurred. Please try again.";
+    return "An unexpected error occurred";
   }, []);
 
   const updateCache = useCallback((key: string, value: string): void => {

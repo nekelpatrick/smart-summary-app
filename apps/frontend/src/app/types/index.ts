@@ -36,6 +36,9 @@ export interface SummaryRequest {
 
 export interface SummaryResponse {
   summary: string;
+  originalLength?: number;
+  summaryLength?: number;
+  provider?: string;
 }
 
 export interface ExampleResponse {
@@ -89,6 +92,8 @@ export interface MobileTextInputProps {
   onSubmit: (text: string) => void;
   loading: boolean;
 }
+
+export type ApiKeyValidationStatus = 'idle' | 'valid' | 'invalid' | 'error';
 
 export interface ApiKeyInputProps {
   apiKey: string;
@@ -176,6 +181,7 @@ export interface Toast {
   message: string;
   type: 'success' | 'error' | 'info' | 'warning';
   duration?: number;
+  timestamp?: number;
 }
 
 export interface ToastContextType {
@@ -188,8 +194,6 @@ export interface ToastContextType {
   showWarning: (message: string, duration?: number) => void;
 }
 
-export type ApiKeyValidationStatus = 'idle' | 'valid' | 'invalid' | 'error';
-
 export interface ApiKeyStorage {
   getApiKey: () => string | null;
   setApiKey: (apiKey: string) => void;
@@ -198,7 +202,6 @@ export interface ApiKeyStorage {
   setSelectedProvider: (provider: LLMProvider) => void;
 }
 
-// Type guards for runtime validation
 export interface UnknownObject {
   [key: string]: unknown;
 }
@@ -226,7 +229,38 @@ export type ExampleResponseData = {
   text: string;
 };
 
-// Type guard functions
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public statusCode: number,
+    public errorType: string = "API_ERROR"
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+export class NetworkError extends Error {
+  constructor(message: string, public code: string = "NETWORK_ERROR") {
+    super(message);
+    this.name = "NetworkError";
+  }
+}
+
+export class ValidationError extends Error {
+  constructor(message: string, public field?: string) {
+    super(message);
+    this.name = "ValidationError";
+  }
+}
+
+export class ApiValidationError extends Error {
+  constructor(message: string, public readonly field?: string) {
+    super(message);
+    this.name = 'ApiValidationError';
+  }
+}
+
 export function isApiKeyValidationResponse(data: unknown): data is ApiKeyValidationResponseData {
   if (!data || typeof data !== 'object') return false;
   const obj = data as UnknownObject;
@@ -262,20 +296,10 @@ export function isExampleResponse(data: unknown): data is ExampleResponseData {
   return typeof obj.text === 'string';
 }
 
-// Custom error types
-export class ApiValidationError extends Error {
-  constructor(message: string, public readonly field?: string) {
-    super(message);
-    this.name = 'ApiValidationError';
-  }
-}
-
 export function isValidSummaryResponse(data: unknown): data is SummaryResponse {
-  return (
-    typeof data === "object" &&
-    data !== null &&
-    typeof (data as SummaryResponse).summary === "string"
-  );
+  if (!data || typeof data !== 'object') return false;
+  const obj = data as UnknownObject;
+  return typeof obj.summary === 'string';
 }
 
 export function isValidProviderInfo(data: unknown): data is ProviderInfo {
@@ -303,57 +327,21 @@ export function isValidProviderStatus(value: unknown): value is ProviderStatus {
 export function isValidApiKeyValidationStatus(
   value: unknown
 ): value is ApiKeyValidationStatus {
-  const validStatuses: ApiKeyValidationStatus[] = ['idle', 'valid', 'invalid', 'error'];
+  const validStatuses = ['idle', 'valid', 'invalid', 'error'] as const;
   return validStatuses.includes(value as ApiKeyValidationStatus);
 }
 
 export function isApiError(error: unknown): error is ApiError {
   return (
-    error instanceof Error &&
-    "statusCode" in error &&
-    "errorType" in error &&
-    typeof (error as ApiError).statusCode === "number" &&
-    typeof (error as ApiError).errorType === "string"
+    error instanceof ApiError &&
+    typeof error.statusCode === "number" &&
+    typeof error.errorType === "string"
   );
 }
 
 export function isNetworkError(error: unknown): error is NetworkError {
   return (
-    error instanceof Error &&
-    "code" in error &&
-    typeof (error as NetworkError).code === "string"
+    error instanceof NetworkError &&
+    typeof error.code === "string"
   );
-}
-
-export class ApiError extends Error {
-  constructor(
-    message: string,
-    public statusCode: number,
-    public errorType: string = "API_ERROR"
-  ) {
-    super(message);
-    this.name = "ApiError";
-  }
-}
-
-export class NetworkError extends Error {
-  constructor(message: string, public code: string = "NETWORK_ERROR") {
-    super(message);
-    this.name = "NetworkError";
-  }
-}
-
-export class ValidationError extends Error {
-  constructor(message: string, public field?: string) {
-    super(message);
-    this.name = "ValidationError";
-  }
-}
-
-export interface Toast {
-  id: string;
-  message: string;
-  type: 'success' | 'error' | 'info' | 'warning';
-  duration?: number;
-  timestamp: number;
 } 

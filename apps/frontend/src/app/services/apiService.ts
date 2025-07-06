@@ -3,7 +3,6 @@ import { streamingService } from "./streamingService";
 import type { 
   SummaryRequest, 
   ExampleResponse, 
-  ApiError,
   ApiKeyValidationRequest,
   ApiKeyValidationResponse,
   ProvidersListResponse,
@@ -14,7 +13,8 @@ import {
   isApiKeyValidationResponse,
   isProvidersListResponse,
   isExampleResponse,
-  ApiValidationError
+  ApiValidationError,
+  ApiError
 } from "../types";
 
 class ApiService {
@@ -105,10 +105,7 @@ class ApiService {
   }
 
   private createError(status: number, message: string): ApiError {
-    return {
-      detail: message,
-      status: status || undefined,
-    };
+    return new ApiError(message, status);
   }
 
   private validateApiKeyResponse(data: unknown): ApiKeyValidationResponse {
