@@ -1,101 +1,133 @@
 import os
-from typing import AsyncGenerator, Optional
+from typing import AsyncGenerator, Optional, Tuple
 import openai
 from fastapi import HTTPException
 from dotenv import load_dotenv
+from openai import AsyncOpenAI
+from ..models import LLMProvider
 
 load_dotenv()
 
 
 class LLMService:
     def __init__(self):
-        self.default_api_key = os.getenv("OPENAI_API_KEY")
-        if not self.default_api_key or self.default_api_key == "your_openai_api_key_here":
-            raise ValueError("Please set your OpenAI API key in the .env file")
-
-        self.default_client = openai.AsyncOpenAI(api_key=self.default_api_key)
+        self.client = None
+        self.api_key = None
         self.model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 
-    def _get_client(self, api_key: Optional[str] = None) -> openai.AsyncOpenAI:
-        """Get OpenAI client with custom API key or default"""
+    def _get_client(self, api_key: Optional[str] = None) -> AsyncOpenAI:
         if api_key:
-            return openai.AsyncOpenAI(api_key=api_key)
-        return self.default_client
+            return AsyncOpenAI(api_key=api_key)
 
-    async def validate_api_key(self, api_key: str) -> tuple[bool, str]:
-        """Validate an OpenAI API key by making a test request"""
+        if not self.client:
+            default_key = os.getenv('OPENAI_API_KEY')
+            if not default_key:
+                raise HTTPException(
+                    status_code=400,
+                    detail="No OpenAI API key provided. Please provide your own API key."
+                )
+            self.client = AsyncOpenAI(api_key=default_key)
+        return self.client
+
+    async def validate_api_key(self, api_key: str, provider: LLMProvider = LLMProvider.OPENAI) -> bool:
+        if provider != LLMProvider.OPENAI:
+            return False
+
         try:
-            client = openai.AsyncOpenAI(api_key=api_key)
-            # Make a minimal test request to validate the key
-            response = await client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": "Test"}],
-                max_tokens=1,
-                temperature=0.3,
+            client = AsyncOpenAI(api_key=api_key)
+            await client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": "test"}],
+                max_tokens=1
             )
-            return True, "API key is valid"
-        except openai.AuthenticationError:
-            return False, "Invalid API key - authentication failed"
-        except openai.RateLimitError:
-            return False, "API key rate limit exceeded - please try again later"
-        except openai.PermissionDeniedError:
-            return False, "API key does not have the required permissions"
-        except Exception as e:
-            return False, f"API key validation failed: {str(e)}"
+            return True
+        except Exception:
+            return False
 
-    async def summarize(self, text: str, max_length: Optional[int] = 200, api_key: Optional[str] = None) -> str:
+    async def summarize_text(
+        self,
+        text: str,
+        max_length: int = 200,
+        api_key: Optional[str] = None,
+        provider: LLMProvider = LLMProvider.OPENAI
+    ) -> str:
+        if provider != LLMProvider.OPENAI:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Provider {provider} is not supported. Only OpenAI is available."
+            )
+
         if not text.strip():
             raise ValueError("Text cannot be empty")
 
-        prompt = f"Summarize the following text in about {max_length} words:\n\n{text}"
-        client = self._get_client(api_key)
+        prompt = f"Summarize the following text in approximately {max_length} words:\n\n{text}"
 
         try:
+            client = self._get_client(api_key)
+
             response = await client.chat.completions.create(
-                model=self.model,
+                model="gpt-3.5-turbo",
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=max_length * 2,
-                temperature=0.3,
+                temperature=0.7
             )
 
             return response.choices[0].message.content.strip()
-        except openai.AuthenticationError:
-            raise HTTPException(status_code=401, detail="Invalid API key")
-        except openai.RateLimitError:
-            raise HTTPException(status_code=429, detail="Rate limit exceeded")
-        except openai.PermissionDeniedError:
-            raise HTTPException(
-                status_code=403, detail="API key does not have required permissions")
         except Exception as e:
+            if "authentication" in str(e).lower():
+                raise HTTPException(
+                    status_code=401,
+                    detail="Invalid API key. Please check your OpenAI API key."
+                )
             raise HTTPException(
                 status_code=500, detail=f"Summarization failed: {str(e)}")
 
-    async def summarize_stream(self, text: str, max_length: Optional[int] = 200, api_key: Optional[str] = None) -> AsyncGenerator[str, None]:
+    async def summarize_text_stream(
+        self,
+        text: str,
+        max_length: int = 200,
+        api_key: Optional[str] = None,
+        provider: LLMProvider = LLMProvider.OPENAI
+    ) -> AsyncGenerator[str, None]:
+        if provider != LLMProvider.OPENAI:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Provider {provider} is not supported. Only OpenAI is available."
+            )
+
         if not text.strip():
             raise ValueError("Text cannot be empty")
 
-        prompt = f"Summarize the following text in about {max_length} words:\n\n{text}"
-        client = self._get_client(api_key)
+        prompt = f"Summarize the following text in approximately {max_length} words:\n\n{text}"
 
         try:
-            stream = await client.chat.completions.create(
-                model=self.model,
+            client = self._get_client(api_key)
+
+            response = await client.chat.completions.create(
+                model="gpt-3.5-turbo",
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=max_length * 2,
-                temperature=0.3,
-                stream=True,
+                temperature=0.7,
+                stream=True
             )
 
-            async for chunk in stream:
+            async for chunk in response:
                 if chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
-        except openai.AuthenticationError:
-            raise HTTPException(status_code=401, detail="Invalid API key")
-        except openai.RateLimitError:
-            raise HTTPException(status_code=429, detail="Rate limit exceeded")
-        except openai.PermissionDeniedError:
-            raise HTTPException(
-                status_code=403, detail="API key does not have required permissions")
+                    yield f"data: {chunk.choices[0].delta.content}\n\n"
+
+            yield "data: [DONE]\n\n"
         except Exception as e:
+            if "authentication" in str(e).lower():
+                raise HTTPException(
+                    status_code=401,
+                    detail="Invalid API key. Please check your OpenAI API key."
+                )
             raise HTTPException(
-                status_code=500, detail=f"Stream failed: {str(e)}")
+                status_code=500, detail=f"Streaming failed: {str(e)}")
+
+    async def summarize(self, text: str, max_length: int = 200, api_key: Optional[str] = None) -> str:
+        return await self.summarize_text(text, max_length, api_key, LLMProvider.OPENAI)
+
+    async def summarize_stream(self, text: str, max_length: int = 200, api_key: Optional[str] = None) -> AsyncGenerator[str, None]:
+        async for chunk in self.summarize_text_stream(text, max_length, api_key, LLMProvider.OPENAI):
+            yield chunk

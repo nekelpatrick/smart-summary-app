@@ -14,7 +14,7 @@ import {
 import { useTextSummary, usePasteHandler } from "./hooks";
 import { getWordCount, getCharCount } from "./utils/text";
 
-function Home() {
+function Home(): React.ReactElement {
   const {
     text,
     summary,
@@ -40,7 +40,6 @@ function Home() {
     clearApiKey,
   } = useTextSummary();
 
-  // Enhanced features state
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [showTextAnalyzer, setShowTextAnalyzer] = useState(false);
   const [enhancedMode, setEnhancedMode] = useState(false);
@@ -60,24 +59,16 @@ function Home() {
     [text]
   );
 
-  const handleOptimizationSelect = (optimization: string) => {
+  const handleOptimizationSelect = (optimization: string): void => {
     console.log("Selected optimization:", optimization);
   };
 
   return (
     <ErrorBoundary>
-      <main className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 relative overflow-hidden">
-        {/* Background decorations */}
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-400 rounded-full opacity-10 blur-3xl"></div>
-          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-400 rounded-full opacity-10 blur-3xl"></div>
-        </div>
-
-        <div className="relative z-10 min-h-screen">
-          {/* Header with Hero Section */}
-          <header className="text-center px-4 pt-8 pb-6 md:pt-12 md:pb-8">
-            <div className="mx-auto max-w-4xl">
-              {/* Main Title */}
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50">
+        <div className="relative">
+          <header className="pt-12 pb-16">
+            <div className="text-center">
               <div className="mb-8">
                 <h1 className="text-5xl md:text-7xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent mb-4">
                   Paste to Summary
@@ -88,35 +79,37 @@ function Home() {
                 </p>
               </div>
 
-              {/* Quick Actions Bar */}
-              <div className="flex flex-wrap items-center justify-center gap-3 mb-6">
+              <div className="flex flex-wrap gap-4 justify-center items-center mb-8">
                 <button
-                  onClick={() => setEnhancedMode(!enhancedMode)}
-                  className={`px-4 py-2 rounded-full font-medium transition-all duration-200 ${
-                    enhancedMode
-                      ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg shadow-blue-500/25"
-                      : "bg-white/70 backdrop-blur-sm text-gray-700 hover:bg-white/90 border border-gray-200"
-                  }`}
+                  onClick={loadExample}
+                  disabled={loading}
+                  className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold rounded-2xl hover:from-blue-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all duration-200 shadow-lg shadow-blue-500/25 min-h-[48px]"
                 >
-                  {enhancedMode ? "🚀 Enhanced" : "⚡ Standard"}
-                </button>
-
-                <button
-                  onClick={() => setShowAnalytics(true)}
-                  className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-full hover:from-green-600 hover:to-emerald-600 transition-all duration-200 font-medium shadow-lg shadow-green-500/25"
-                >
-                  📊 Analytics
+                  <span className="mr-2 text-lg">⚡</span>
+                  <span>Quick Demo</span>
                 </button>
 
                 <button
                   onClick={() => setShowApiSettings(!showApiSettings)}
-                  className="px-4 py-2 bg-white/70 backdrop-blur-sm text-gray-700 rounded-full hover:bg-white/90 border border-gray-200 transition-all duration-200 font-medium"
+                  className="inline-flex items-center px-6 py-3 bg-white/80 backdrop-blur-sm text-gray-700 font-medium rounded-2xl border border-gray-200/50 hover:bg-white hover:shadow-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-all duration-200 min-h-[48px]"
                 >
-                  ⚙️ API Settings
+                  <span className="mr-2 text-lg">🔧</span>
+                  <span>API Settings</span>
+                </button>
+
+                <button
+                  onClick={() => setEnhancedMode(!enhancedMode)}
+                  className={`inline-flex items-center px-6 py-3 font-medium rounded-2xl border transition-all duration-200 min-h-[48px] ${
+                    enhancedMode
+                      ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/25"
+                      : "bg-white/80 backdrop-blur-sm text-gray-700 border-gray-200/50 hover:bg-white hover:shadow-md"
+                  } focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2`}
+                >
+                  <span className="mr-2 text-lg">🧠</span>
+                  <span>Smart Mode</span>
                 </button>
               </div>
 
-              {/* Enhanced Mode Info */}
               {enhancedMode && (
                 <div className="max-w-2xl mx-auto mb-6 p-4 bg-white/80 backdrop-blur-sm rounded-2xl border border-purple-200/50 shadow-lg">
                   <div className="flex items-center justify-center space-x-2 mb-3">
@@ -146,7 +139,6 @@ function Home() {
                 </div>
               )}
 
-              {/* API Settings Panel */}
               {showApiSettings && (
                 <div className="max-w-md mx-auto mb-6 p-6 bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200/50 shadow-lg">
                   <div className="flex items-center justify-between mb-4">
@@ -180,15 +172,12 @@ function Home() {
             </div>
           </header>
 
-          {/* Main Content */}
           <div className="px-4 pb-8">
             <div className="mx-auto max-w-4xl">
-              {/* Instructions Section */}
               {!text && (
                 <Instructions onExample={loadExample} loading={loading} />
               )}
 
-              {/* Mobile Text Input */}
               {!text && (
                 <MobileTextInput
                   onSubmit={(content) => {
@@ -199,7 +188,6 @@ function Home() {
                 />
               )}
 
-              {/* Text Display */}
               {text && (
                 <TextDisplay
                   text={text}
@@ -209,36 +197,17 @@ function Home() {
                 />
               )}
 
-              {/* Enhanced Text Analyzer */}
               {enhancedMode && text && (
                 <div className="mb-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <button
-                      onClick={() => setShowTextAnalyzer(!showTextAnalyzer)}
-                      className="flex items-center space-x-2 px-4 py-2 bg-white/70 backdrop-blur-sm text-indigo-700 rounded-full hover:bg-white/90 border border-indigo-200 transition-all duration-200"
-                    >
-                      <span>🔍</span>
-                      <span className="text-sm font-medium">
-                        {showTextAnalyzer ? "Hide" : "Show"} Smart Analysis
-                      </span>
-                    </button>
-                    <div className="text-xs text-gray-500">
-                      AI-powered optimization recommendations
-                    </div>
-                  </div>
-
-                  {showTextAnalyzer && (
-                    <TextAnalyzer
-                      text={text}
-                      apiKey={apiKey}
-                      onOptimizationSelect={handleOptimizationSelect}
-                    />
-                  )}
+                  <TextAnalyzer
+                    text={text}
+                    apiKey={apiKey}
+                    onOptimizationSelect={handleOptimizationSelect}
+                  />
                 </div>
               )}
 
-              {/* Results Display */}
-              {(text || loading) && (
+              {(loading || summary || error) && (
                 <ResultDisplay
                   summary={summary}
                   loading={loading}
@@ -250,7 +219,6 @@ function Home() {
                 />
               )}
 
-              {/* Enhanced Features Info */}
               {enhancedMode && (
                 <div className="mt-8 p-6 bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200/50 shadow-lg">
                   <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
@@ -309,54 +277,72 @@ function Home() {
                   </div>
                 </div>
               )}
+
+              {enhancedMode && (
+                <div className="mt-6 flex justify-center gap-4">
+                  <button
+                    onClick={() => setShowAnalytics(!showAnalytics)}
+                    className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-medium rounded-xl hover:from-green-600 hover:to-emerald-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 shadow-lg shadow-green-500/25"
+                  >
+                    <span className="mr-2">📊</span>
+                    Analytics
+                  </button>
+                  <button
+                    onClick={() => setShowTextAnalyzer(!showTextAnalyzer)}
+                    className="px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-medium rounded-xl hover:from-amber-600 hover:to-orange-600 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 transition-all duration-200 shadow-lg shadow-amber-500/25"
+                  >
+                    <span className="mr-2">🔍</span>
+                    Text Analyzer
+                  </button>
+                </div>
+              )}
+
+              {showAnalytics && enhancedMode && (
+                <div className="mt-6">
+                  <AnalyticsDashboard
+                    isOpen={showAnalytics}
+                    onClose={() => setShowAnalytics(false)}
+                  />
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Footer */}
-          <footer className="mt-16 py-8 border-t border-gray-200/50 backdrop-blur-sm">
+          <footer className="bg-gray-50/80 backdrop-blur-sm border-t border-gray-200/50 py-8 mt-16">
             <div className="max-w-4xl mx-auto px-4 text-center">
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-sm text-gray-600">
-                <span>Built with ❤️ by</span>
-                <div className="flex items-center gap-4">
-                  <a
-                    href="https://patrick-nekel.vercel.app/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-semibold text-blue-600 hover:text-blue-800 transition-colors"
-                  >
-                    nekeldev
-                  </a>
-                  <span className="text-gray-400">•</span>
-                  <a
-                    href="https://www.linkedin.com/in/nekelpatrick/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-gray-500 hover:text-gray-700 transition-colors"
-                  >
-                    LinkedIn
-                  </a>
-                  <span className="text-gray-400">•</span>
-                  <a
-                    href="https://www.buymeacoffee.com/nekeldev"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-amber-600 hover:text-amber-800 transition-colors flex items-center gap-1"
-                  >
-                    <span>☕</span>
-                    Buy me a coffee
-                  </a>
-                </div>
+              <div className="flex flex-wrap justify-center items-center gap-4 text-sm text-gray-600">
+                <span>Built by</span>
+                <a
+                  href="https://patrick-nekel.vercel.app/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-blue-600 hover:text-blue-800 transition-colors"
+                >
+                  nekeldev
+                </a>
+                <span>•</span>
+                <a
+                  href="https://www.linkedin.com/in/nekelpatrick/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-blue-600 hover:text-blue-800 transition-colors"
+                >
+                  LinkedIn
+                </a>
+                <span>•</span>
+                <a
+                  href="https://www.buymeacoffee.com/nekeldev"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-amber-600 hover:text-amber-800 transition-colors"
+                >
+                  ☕ Buy me a coffee
+                </a>
               </div>
             </div>
           </footer>
         </div>
-
-        {/* Analytics Modal */}
-        <AnalyticsDashboard
-          isOpen={showAnalytics}
-          onClose={() => setShowAnalytics(false)}
-        />
-      </main>
+      </div>
     </ErrorBoundary>
   );
 }

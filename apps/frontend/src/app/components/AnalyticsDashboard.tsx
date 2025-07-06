@@ -1,11 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-  enhancedApiService,
-  Analytics,
-  TextAnalysis,
-} from "../services/enhancedApiService";
+import { enhancedApiService, Analytics } from "../services/enhancedApiService";
 
 interface AnalyticsDashboardProps {
   isOpen: boolean;
@@ -46,7 +42,7 @@ export default function AnalyticsDashboard({
     setClearingCache(true);
     try {
       await enhancedApiService.clearCache();
-      await fetchAnalytics(); // Refresh analytics
+      await fetchAnalytics();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to clear cache");
     } finally {

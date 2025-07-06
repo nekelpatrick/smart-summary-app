@@ -1,7 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ApiKeyInputProps, LLMProvider, ProviderStatus } from "../types";
+import {
+  ApiKeyInputProps,
+  LLMProvider,
+  ProviderStatus,
+  ProviderInfo,
+} from "../types";
 
 export default function ApiKeyInput({
   apiKey,
@@ -22,30 +27,32 @@ export default function ApiKeyInput({
     setInputValue(apiKey);
   }, [apiKey]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
     const value = e.target.value;
     setInputValue(value);
     onApiKeyChange(value);
   };
 
-  const handleProviderChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleProviderChange = (
+    e: React.ChangeEvent<HTMLSelectElement>
+  ): void => {
     const provider = e.target.value as LLMProvider;
     onProviderChange(provider);
   };
 
-  const handleValidate = () => {
+  const handleValidate = (): void => {
     if (inputValue.trim()) {
       onValidate();
     }
   };
 
-  const handleClear = () => {
+  const handleClear = (): void => {
     setInputValue("");
     onApiKeyChange("");
     onClear();
   };
 
-  const getValidationIcon = () => {
+  const getValidationIcon = (): string => {
     switch (validationStatus) {
       case "valid":
         return "✅";
@@ -58,7 +65,7 @@ export default function ApiKeyInput({
     }
   };
 
-  const getValidationColor = () => {
+  const getValidationColor = (): string => {
     switch (validationStatus) {
       case "valid":
         return "text-green-600";
@@ -71,7 +78,7 @@ export default function ApiKeyInput({
     }
   };
 
-  const getValidationMessage = () => {
+  const getValidationMessage = (): string => {
     switch (validationStatus) {
       case "valid":
         return "API key is valid";
@@ -84,7 +91,7 @@ export default function ApiKeyInput({
     }
   };
 
-  const getCurrentProvider = () => {
+  const getCurrentProvider = (): ProviderInfo | undefined => {
     return availableProviders.find((p) => p.id === selectedProvider);
   };
 
@@ -152,12 +159,12 @@ export default function ApiKeyInput({
     );
   };
 
-  const isProviderEnabled = () => {
+  const isProviderEnabled = (): boolean => {
     const provider = getCurrentProvider();
     return provider?.enabled ?? false;
   };
 
-  const getPlaceholderText = () => {
+  const getPlaceholderText = (): string => {
     const provider = getCurrentProvider();
     if (!provider) return "Enter API key...";
     return provider.key_prefix
@@ -181,7 +188,7 @@ export default function ApiKeyInput({
             value={selectedProvider}
             onChange={handleProviderChange}
             disabled={loadingProviders}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm text-gray-900"
           >
             {availableProviders.map((provider) => (
               <option
@@ -219,7 +226,7 @@ export default function ApiKeyInput({
             onChange={handleInputChange}
             placeholder={getPlaceholderText()}
             disabled={!isProviderEnabled() || validating}
-            className="w-full px-3 py-2 pr-20 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm disabled:bg-gray-50 disabled:text-gray-500"
+            className="w-full px-3 py-2 pr-20 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-gray-900 disabled:bg-gray-50 disabled:text-gray-500"
           />
           {inputValue && (
             <button

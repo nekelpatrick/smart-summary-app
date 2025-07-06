@@ -3,8 +3,8 @@ import { config } from "../config";
 import { isValidText } from "../utils/text";
 import type { UsePasteHandlerProps } from "../types";
 
-export function usePasteHandler({ onPaste, onError, summarize }: UsePasteHandlerProps) {
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+export function usePasteHandler({ onPaste, onError, summarize }: UsePasteHandlerProps): void {
+  const timeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
   const handlePaste = useCallback(
     (event: ClipboardEvent) => {

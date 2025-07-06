@@ -1,7 +1,10 @@
 import { InstructionsProps } from "../types";
 import { Spinner } from "./Spinner";
 
-export function Instructions({ onExample, loading }: InstructionsProps) {
+export function Instructions({
+  onExample,
+  loading,
+}: InstructionsProps): React.ReactElement {
   const steps = [
     {
       title: "Find text to summarize",

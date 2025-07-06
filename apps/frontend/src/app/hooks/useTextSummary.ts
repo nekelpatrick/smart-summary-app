@@ -13,8 +13,8 @@ import type {
   ProviderInfo
 } from "../types";
 
-const API_KEY_STORAGE_KEY = 'openai-api-key';
-const PROVIDER_STORAGE_KEY = 'selected-provider';
+const API_KEY_STORAGE_KEY = 'summarizer_api_key';
+const PROVIDER_STORAGE_KEY = 'summarizer_provider';
 
 export function useTextSummary(): UseTextSummaryReturn {
   const [text, setText] = useState("");
@@ -23,28 +23,31 @@ export function useTextSummary(): UseTextSummaryReturn {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [isCached, setIsCached] = useState(false);
-  const [apiKey, setApiKeyState] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem(API_KEY_STORAGE_KEY) || '';
-    }
-    return '';
-  });
-  const [selectedProvider, setSelectedProviderState] = useState<LLMProvider>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem(PROVIDER_STORAGE_KEY);
-      return (saved as LLMProvider) || LLMProvider.OPENAI;
-    }
-    return LLMProvider.OPENAI;
-  });
+  const [apiKey, setApiKeyState] = useState('');
+  const [selectedProvider, setSelectedProviderState] = useState<LLMProvider>(LLMProvider.OPENAI);
   const [availableProviders, setAvailableProviders] = useState<ProviderInfo[]>([]);
   const [loadingProviders, setLoadingProviders] = useState(true);
   const [apiKeyValidationStatus, setApiKeyValidationStatus] = useState<ApiKeyValidationStatus>('idle');
   const [validatingApiKey, setValidatingApiKey] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
   
   const timeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const cacheRef = useRef<SummaryCache>(new Map<string, string>());
 
+  useEffect(() => {
+    const savedApiKey = localStorage.getItem(API_KEY_STORAGE_KEY) || '';
+    const savedProvider = localStorage.getItem(PROVIDER_STORAGE_KEY) as LLMProvider || LLMProvider.OPENAI;
+    
+    setApiKeyState(savedApiKey);
+    setSelectedProviderState(savedProvider);
+    setIsHydrated(true);
+  }, []);
+
   const getErrorMessage = useCallback((error: unknown): string => {
+    if (typeof error === 'string') {
+      return error;
+    }
+    
     if (error && typeof error === 'object' && 'detail' in error) {
       const apiError = error as ApiError;
       return apiError.detail;
@@ -83,7 +86,6 @@ export function useTextSummary(): UseTextSummaryReturn {
       const providersData = await apiService.getProviders();
       setAvailableProviders(providersData.providers);
       
-      // If current provider is not in the list or not enabled, switch to default
       const currentProvider = providersData.providers.find(p => p.id === selectedProvider);
       if (!currentProvider || !currentProvider.enabled) {
         setSelectedProviderState(providersData.default_provider as LLMProvider);
@@ -91,7 +93,6 @@ export function useTextSummary(): UseTextSummaryReturn {
     } catch (err) {
       const errorMessage = getErrorMessage(err);
       setError(`Failed to load providers: ${errorMessage}`);
-      // Fallback to default provider configuration
       setAvailableProviders([
         {
           id: LLMProvider.OPENAI,
@@ -110,7 +111,7 @@ export function useTextSummary(): UseTextSummaryReturn {
 
   const setApiKey = useCallback((key: string): void => {
     setApiKeyState(key);
-    if (typeof window !== 'undefined') {
+    if (isHydrated) {
       if (key) {
         localStorage.setItem(API_KEY_STORAGE_KEY, key);
       } else {
@@ -118,16 +119,15 @@ export function useTextSummary(): UseTextSummaryReturn {
       }
     }
     setApiKeyValidationStatus('idle');
-  }, []);
+  }, [isHydrated]);
 
   const setSelectedProvider = useCallback((provider: LLMProvider): void => {
     setSelectedProviderState(provider);
-    if (typeof window !== 'undefined') {
+    if (isHydrated) {
       localStorage.setItem(PROVIDER_STORAGE_KEY, provider);
     }
-    // Reset API key validation when provider changes
     setApiKeyValidationStatus('idle');
-  }, []);
+  }, [isHydrated]);
 
   const clearApiKey = useCallback((): void => {
     setApiKey('');
@@ -247,63 +247,43 @@ export function useTextSummary(): UseTextSummaryReturn {
     try {
       setError("");
       setLoading(true);
-
-      const example = await apiService.getExample();
-      setText(example.text);
-      await summarize(example.text);
+      
+      const exampleData = await apiService.getExample();
+      setText(exampleData.text);
+      await summarize(exampleData.text);
     } catch (err) {
       const errorMessage = getErrorMessage(err);
-      setError(errorMessage);
+      setError(`Failed to load example: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
   }, [summarize, getErrorMessage]);
 
   const tryAgain = useCallback(async (): Promise<void> => {
-    if (!text || !isValidText(text)) {
-      setError("No text available to retry");
-      return;
-    }
+    if (!text) return;
 
     const normalizedContent = normalizeText(text);
     const cache = cacheRef.current;
     
-    if (cache) {
+    if (cache?.has(normalizedContent)) {
       cache.delete(normalizedContent);
     }
-
+    
     setIsCached(false);
-    setError("");
-    setSummary("");
-    setLoading(true);
+    await summarize(text);
+  }, [text, summarize]);
 
-    try {
-      const request: SummaryRequest = { 
-        text: text, 
-        max_length: config.defaultMaxLength,
-        api_key: apiKey || undefined,
-        provider: selectedProvider
-      };
-
-      const result = await apiService.summarizeText(request, (progressContent) => {
-        setSummary(progressContent);
-      });
-
-      setSummary(result);
-      updateCache(normalizedContent, result);
-    } catch (err) {
-      const errorMessage = getErrorMessage(err);
-      setError(errorMessage);
-      setSummary("");
-    } finally {
-      setLoading(false);
-    }
-  }, [text, updateCache, getErrorMessage, apiKey, selectedProvider]);
-
-  // Load providers on component mount
   useEffect(() => {
-    loadProviders();
-  }, [loadProviders]);
+    if (isHydrated) {
+      loadProviders();
+    }
+  }, [isHydrated, loadProviders]);
+
+  useEffect(() => {
+    return () => {
+      clearTimeouts();
+    };
+  }, [clearTimeouts]);
 
   return {
     text,

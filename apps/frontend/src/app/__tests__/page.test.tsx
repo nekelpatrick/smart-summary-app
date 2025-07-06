@@ -10,7 +10,6 @@ Object.assign(global, {
 
 // Ensure TextDecoder is available in the global scope
 if (typeof global.TextDecoder === "undefined") {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   global.TextDecoder = TextDecoder as any;
 }
 
@@ -56,9 +55,7 @@ class MockClipboardEvent extends Event {
 }
 
 // Setup global mocks
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 (global as any).ClipboardEvent = MockClipboardEvent;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 (global as any).DataTransfer = MockDataTransfer;
 
 // Mock fetch with proper typing

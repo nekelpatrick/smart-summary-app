@@ -10,6 +10,13 @@ import type {
   ProviderInfo,
   ProviderStatus
 } from "../types";
+import {
+  isApiKeyValidationResponse,
+  isProvidersListResponse,
+  isExampleResponse,
+  ApiValidationError,
+  NetworkError
+} from "../types";
 
 class ApiService {
   private baseUrl = config.apiUrl;
@@ -106,92 +113,44 @@ class ApiService {
   }
 
   private validateApiKeyResponse(data: unknown): ApiKeyValidationResponse {
-    if (!data || typeof data !== 'object') {
-      throw this.createError(0, "Invalid response format");
-    }
-
-    const response = data as Record<string, unknown>;
-    
-    if (typeof response.valid !== 'boolean') {
-      throw this.createError(0, "Invalid API key validation response: missing valid field");
-    }
-
-    if (typeof response.message !== 'string') {
-      throw this.createError(0, "Invalid API key validation response: missing message field");
-    }
-
-    if (typeof response.provider !== 'string') {
-      throw this.createError(0, "Invalid API key validation response: missing provider field");
+    if (!isApiKeyValidationResponse(data)) {
+      throw new ApiValidationError("Invalid API key validation response format");
     }
 
     return { 
-      valid: response.valid, 
-      message: response.message, 
-      provider: response.provider 
+      valid: data.valid, 
+      message: data.message, 
+      provider: data.provider 
     };
   }
 
   private validateProvidersResponse(data: unknown): ProvidersListResponse {
-    if (!data || typeof data !== 'object') {
-      throw this.createError(0, "Invalid response format");
+    if (!isProvidersListResponse(data)) {
+      throw new ApiValidationError("Invalid providers response format");
     }
 
-    const response = data as Record<string, unknown>;
-    
-    if (!Array.isArray(response.providers)) {
-      throw this.createError(0, "Invalid providers response: missing providers array");
-    }
-
-    if (typeof response.default_provider !== 'string') {
-      throw this.createError(0, "Invalid providers response: missing default_provider field");
-    }
-
-    const providers: ProviderInfo[] = response.providers.map((provider: unknown) => {
-      if (!provider || typeof provider !== 'object') {
-        throw this.createError(0, "Invalid provider format");
-      }
-
-      const p = provider as Record<string, unknown>;
-      
-      if (typeof p.id !== 'string' || 
-          typeof p.name !== 'string' || 
-          typeof p.description !== 'string' || 
-          typeof p.status !== 'string' || 
-          typeof p.enabled !== 'boolean' || 
-          typeof p.key_prefix !== 'string' || 
-          typeof p.min_key_length !== 'number') {
-        throw this.createError(0, "Invalid provider format: missing required fields");
-      }
-
-      return {
-        id: p.id,
-        name: p.name,
-        description: p.description,
-        status: p.status as ProviderStatus,
-        enabled: p.enabled,
-        key_prefix: p.key_prefix,
-        min_key_length: p.min_key_length,
-      };
-    });
+    const providers: ProviderInfo[] = data.providers.map((provider) => ({
+      id: provider.id,
+      name: provider.name,
+      description: provider.description,
+      status: provider.status as ProviderStatus,
+      enabled: provider.enabled,
+      key_prefix: provider.key_prefix,
+      min_key_length: provider.min_key_length,
+    }));
 
     return { 
       providers, 
-      default_provider: response.default_provider 
+      default_provider: data.default_provider 
     };
   }
 
   private validateExampleResponse(data: unknown): ExampleResponse {
-    if (!data || typeof data !== 'object') {
-      throw this.createError(0, "Invalid response format");
+    if (!isExampleResponse(data)) {
+      throw new ApiValidationError("Invalid example response format");
     }
 
-    const response = data as Record<string, unknown>;
-    
-    if (typeof response.text !== 'string') {
-      throw this.createError(0, "Invalid example response: missing text field");
-    }
-
-    return { text: response.text };
+    return { text: data.text };
   }
 }
 

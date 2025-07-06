@@ -1,6 +1,11 @@
 import { TextDisplayProps } from "../types";
 
-export function TextDisplay({ text, words, chars, onClear }: TextDisplayProps) {
+export function TextDisplay({
+  text,
+  words,
+  chars,
+  onClear,
+}: TextDisplayProps): React.ReactElement {
   return (
     <div className="mb-6 rounded-lg bg-white p-4 md:p-6 shadow-lg">
       <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">

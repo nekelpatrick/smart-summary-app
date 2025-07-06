@@ -158,4 +158,83 @@ export interface ApiKeyStorage {
   clearApiKey: () => void;
   getSelectedProvider: () => LLMProvider;
   setSelectedProvider: (provider: LLMProvider) => void;
+}
+
+// Type guards for runtime validation
+export interface UnknownObject {
+  [key: string]: unknown;
+}
+
+export type ApiKeyValidationResponseData = {
+  valid: boolean;
+  message: string;
+  provider: string;
+};
+
+export type ProvidersListResponseData = {
+  providers: Array<{
+    id: string;
+    name: string;
+    description: string;
+    status: string;
+    enabled: boolean;
+    key_prefix: string;
+    min_key_length: number;
+  }>;
+  default_provider: string;
+};
+
+export type ExampleResponseData = {
+  text: string;
+};
+
+// Type guard functions
+export function isApiKeyValidationResponse(data: unknown): data is ApiKeyValidationResponseData {
+  if (!data || typeof data !== 'object') return false;
+  const obj = data as UnknownObject;
+  return typeof obj.valid === 'boolean' && 
+         typeof obj.message === 'string' && 
+         typeof obj.provider === 'string';
+}
+
+export function isProvidersListResponse(data: unknown): data is ProvidersListResponseData {
+  if (!data || typeof data !== 'object') return false;
+  const obj = data as UnknownObject;
+  
+  if (!Array.isArray(obj.providers) || typeof obj.default_provider !== 'string') {
+    return false;
+  }
+  
+  return obj.providers.every((provider: unknown) => {
+    if (!provider || typeof provider !== 'object') return false;
+    const p = provider as UnknownObject;
+    return typeof p.id === 'string' && 
+           typeof p.name === 'string' && 
+           typeof p.description === 'string' && 
+           typeof p.status === 'string' && 
+           typeof p.enabled === 'boolean' && 
+           typeof p.key_prefix === 'string' && 
+           typeof p.min_key_length === 'number';
+  });
+}
+
+export function isExampleResponse(data: unknown): data is ExampleResponseData {
+  if (!data || typeof data !== 'object') return false;
+  const obj = data as UnknownObject;
+  return typeof obj.text === 'string';
+}
+
+// Custom error types
+export class ApiValidationError extends Error {
+  constructor(message: string, public readonly field?: string) {
+    super(message);
+    this.name = 'ApiValidationError';
+  }
+}
+
+export class NetworkError extends Error {
+  constructor(message: string, public readonly status?: number) {
+    super(message);
+    this.name = 'NetworkError';
+  }
 } 

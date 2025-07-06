@@ -2,9 +2,11 @@ import os
 import json
 import asyncio
 from typing import AsyncGenerator, Optional, Dict, List, Any, Tuple
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 import hashlib
+import logging
+import re
 
 import openai
 import tiktoken
@@ -18,555 +20,414 @@ from langchain_core.prompts import ChatPromptTemplate
 from sentence_transformers import SentenceTransformer
 import numpy as np
 import faiss
+from openai import AsyncOpenAI
+from pydantic import BaseModel
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
-class SummaryContext:
-    """Context for summarization with optimization data"""
+class TextContext:
     text: str
-    text_length: int
-    estimated_tokens: int
-    complexity_score: float
+    length: int
+    complexity: float
     domain: str
-    language: str
-    user_preferences: Dict[str, Any]
-    cost_budget: float
+    similar_texts: List[str] = field(default_factory=list)
+    budget: float = 1.0
 
 
 @dataclass
 class OptimizationResult:
-    """Result of context optimization"""
-    optimized_prompt: str
-    expected_tokens: int
-    confidence_score: float
+    strategy: str
+    original_tokens: int
+    optimized_tokens: int
     cost_estimate: float
-    strategy_used: str
+    confidence: float
+    optimized_prompt: str
+    similar_examples: List[str] = field(default_factory=list)
 
 
-class ContextOptimizer:
-    """Optimizes context and prompts for cost efficiency"""
+@dataclass
+class ProcessingState:
+    context: TextContext
+    optimization: Optional[OptimizationResult] = None
+    final_summary: str = ""
+    processing_time: float = 0.0
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
+
+class SmartLangGraphService:
     def __init__(self):
-        self.tokenizer = tiktoken.get_encoding("cl100k_base")
-        self.sentence_model = SentenceTransformer('all-MiniLM-L6-v2')
-
-        # Initialize FAISS index for similar text retrieval
-        self.dimension = 384  # MiniLM dimension
+        self.model = SentenceTransformer('all-MiniLM-L6-v2')
+        self.dimension = 384
         self.index = faiss.IndexFlatIP(self.dimension)
-        self.text_cache = []
+        self.text_cache: Dict[str, str] = {}
+        self.embeddings_cache: List[np.ndarray] = []
 
-        # Cost optimization strategies
         self.strategies = {
-            "compress": self._compress_strategy,
-            "chunk": self._chunk_strategy,
-            "template": self._template_strategy,
-            "shallow_train": self._shallow_train_strategy
+            'cache_hit': self._cache_strategy,
+            'compress': self._compression_strategy,
+            'chunk': self._chunking_strategy,
+            'template': self._template_strategy,
+            'shallow_train': self._shallow_training_strategy,
         }
 
-    def count_tokens(self, text: str) -> int:
-        """Count tokens in text"""
-        return len(self.tokenizer.encode(text))
+    def analyze_complexity(self, text: str) -> float:
+        factors = {
+            'sentence_length': min(len(text.split('.')) / len(text.split()) * 10, 1.0),
+            'word_variety': len(set(text.lower().split())) / len(text.split()) if text.split() else 0,
+            'technical_terms': len(re.findall(r'\b[A-Z]{2,}\b|\b\w+ly\b|\b\w+tion\b', text)) / len(text.split()) if text.split() else 0,
+            'punctuation_density': sum(1 for c in text if c in '.,;:!?') / len(text) if text else 0,
+        }
 
-    def analyze_text_complexity(self, text: str) -> float:
-        """Analyze text complexity (0-1 scale)"""
-        # Simple complexity analysis based on various factors
-        words = text.split()
-        sentences = text.split('.')
-
-        avg_word_length = sum(len(word)
-                              for word in words) / len(words) if words else 0
-        avg_sentence_length = sum(
-            len(sent.split()) for sent in sentences) / len(sentences) if sentences else 0
-
-        # Normalize complexity score
-        complexity = min(1.0, (avg_word_length / 10 +
-                         avg_sentence_length / 20) / 2)
-        return complexity
+        complexity = sum(factors.values()) / len(factors)
+        return min(max(complexity, 0.0), 1.0)
 
     def detect_domain(self, text: str) -> str:
-        """Detect text domain for specialized handling"""
-        # Simple keyword-based domain detection
-        domains = {
-            "technical": ["algorithm", "system", "code", "software", "programming"],
-            "business": ["revenue", "profit", "strategy", "market", "sales"],
-            "academic": ["research", "study", "analysis", "methodology", "findings"],
-            "news": ["reported", "according", "statement", "official", "announced"],
-            "legal": ["contract", "agreement", "clause", "legal", "court"]
+        domain_keywords = {
+            'technical': ['algorithm', 'software', 'system', 'technology', 'programming', 'API', 'database'],
+            'business': ['revenue', 'profit', 'market', 'strategy', 'company', 'sales', 'customer'],
+            'academic': ['research', 'study', 'analysis', 'methodology', 'hypothesis', 'conclusion'],
+            'legal': ['contract', 'agreement', 'clause', 'legal', 'court', 'law', 'regulation'],
+            'medical': ['patient', 'treatment', 'diagnosis', 'medical', 'health', 'clinical'],
+            'news': ['reported', 'according', 'said', 'announced', 'breaking', 'update']
         }
 
         text_lower = text.lower()
         domain_scores = {}
 
-        for domain, keywords in domains.items():
+        for domain, keywords in domain_keywords.items():
             score = sum(1 for keyword in keywords if keyword in text_lower)
             domain_scores[domain] = score
 
-        return max(domain_scores, key=domain_scores.get) if domain_scores else "general"
+        return max(domain_scores, key=domain_scores.get) if domain_scores else 'general'
 
-    async def find_similar_texts(self, text: str, threshold: float = 0.8) -> List[Dict]:
-        """Find similar texts from cache for context reuse"""
-        if not self.text_cache:
+    def find_similar_texts(self, query_text: str, top_k: int = 3) -> List[str]:
+        if len(self.embeddings_cache) == 0:
             return []
 
-        # Encode query text
-        query_embedding = self.sentence_model.encode([text])
+        query_embedding = self.model.encode([query_text])
 
-        # Search for similar texts
-        scores, indices = self.index.search(
-            query_embedding, min(10, len(self.text_cache)))
+        distances, indices = self.index.search(
+            query_embedding, min(top_k, len(self.embeddings_cache)))
 
         similar_texts = []
-        for score, idx in zip(scores[0], indices[0]):
-            if score >= threshold and idx < len(self.text_cache):
-                similar_texts.append({
-                    "text": self.text_cache[idx]["text"],
-                    "summary": self.text_cache[idx]["summary"],
-                    "similarity": float(score),
-                    "strategy": self.text_cache[idx].get("strategy", "unknown")
-                })
+        for idx in indices[0]:
+            if idx < len(list(self.text_cache.keys())):
+                similar_texts.append(list(self.text_cache.keys())[idx])
 
         return similar_texts
 
-    def add_to_cache(self, text: str, summary: str, strategy: str):
-        """Add successful summarization to cache"""
-        embedding = self.sentence_model.encode([text])
+    def add_to_cache(self, text: str, summary: str):
+        text_embedding = self.model.encode([text])
 
-        # Add to FAISS index
-        self.index.add(embedding)
+        self.index.add(text_embedding)
+        self.embeddings_cache.append(text_embedding[0])
+        self.text_cache[text] = summary
 
-        # Add to text cache
-        self.text_cache.append({
-            "text": text,
-            "summary": summary,
-            "strategy": strategy,
-            "timestamp": datetime.now()
-        })
+        if len(self.text_cache) > 100:
+            oldest_keys = list(self.text_cache.keys())[:20]
+            for key in oldest_keys:
+                del self.text_cache[key]
 
-        # Limit cache size
-        if len(self.text_cache) > 1000:
-            # Remove oldest entries
-            self.text_cache = self.text_cache[-800:]
-            # Rebuild FAISS index
-            embeddings = self.sentence_model.encode(
-                [item["text"] for item in self.text_cache])
+            self.embeddings_cache = self.embeddings_cache[20:]
             self.index = faiss.IndexFlatIP(self.dimension)
-            self.index.add(embeddings)
+            if self.embeddings_cache:
+                self.index.add(np.array(self.embeddings_cache))
 
-    def _compress_strategy(self, context: SummaryContext) -> OptimizationResult:
-        """Compression strategy for long texts"""
-        # Extract key sentences using simple scoring
-        sentences = context.text.split('.')
-        if len(sentences) <= 3:
-            return OptimizationResult(
-                optimized_prompt=f"Summarize concisely: {context.text}",
-                expected_tokens=self.count_tokens(context.text) // 2,
-                confidence_score=0.9,
-                cost_estimate=0.001,
-                strategy_used="compress"
-            )
+    def _extract_key_sentences(self, text: str, max_sentences: int = 5) -> str:
+        sentences = text.split('. ')
+        if len(sentences) <= max_sentences:
+            return text
 
-        # Score sentences by length and position
-        scored_sentences = []
+        sentence_scores = []
         for i, sentence in enumerate(sentences):
-            if sentence.strip():
-                position_score = 1.0 if i < 2 or i >= len(
-                    sentences) - 2 else 0.5
-                length_score = min(1.0, len(sentence.split()) / 20)
-                scored_sentences.append(
-                    (sentence.strip(), position_score + length_score))
+            score = len(sentence.split())
+            if i == 0 or i == len(sentences) - 1:
+                score *= 1.5
+            if any(word in sentence.lower() for word in ['important', 'key', 'main', 'significant']):
+                score *= 1.3
+            sentence_scores.append((score, sentence))
 
-        # Select top sentences
-        scored_sentences.sort(key=lambda x: x[1], reverse=True)
-        selected_sentences = [s[0]
-                              for s in scored_sentences[:min(5, len(scored_sentences))]]
-        compressed_text = '. '.join(selected_sentences)
+        sentence_scores.sort(reverse=True)
 
-        optimized_prompt = f"Summarize this key information: {compressed_text}"
+        top_sentences = [sent for _, sent in sentence_scores[:max_sentences]]
+
+        return '. '.join(top_sentences)
+
+    def _compression_strategy(self, context: TextContext) -> OptimizationResult:
+        compressed_text = self._extract_key_sentences(context.text)
+        original_tokens = self.count_tokens(context.text)
+        optimized_tokens = self.count_tokens(compressed_text)
 
         return OptimizationResult(
-            optimized_prompt=optimized_prompt,
-            expected_tokens=self.count_tokens(optimized_prompt) + 100,
-            confidence_score=0.8,
-            cost_estimate=0.0008,
-            strategy_used="compress"
+            strategy="compress",
+            original_tokens=original_tokens,
+            optimized_tokens=optimized_tokens,
+            cost_estimate=optimized_tokens * 0.000002,
+            confidence=0.8,
+            optimized_prompt=f"Summarize this compressed text: {compressed_text}"
         )
 
-    def _chunk_strategy(self, context: SummaryContext) -> OptimizationResult:
-        """Chunking strategy for very long texts"""
+    def _chunking_strategy(self, context: TextContext) -> OptimizationResult:
         words = context.text.split()
-        chunk_size = 300  # words per chunk
+        chunk_size = 300
+        chunks = []
 
-        if len(words) <= chunk_size:
-            return self._template_strategy(context)
+        for i in range(0, len(words), chunk_size):
+            chunk = ' '.join(words[i:i + chunk_size])
+            chunks.append(chunk)
 
-        chunks = [' '.join(words[i:i + chunk_size])
-                  for i in range(0, len(words), chunk_size)]
-        optimized_prompt = f"Summarize these {len(chunks)} sections separately, then provide an overall summary:\n\n"
+        if len(chunks) > 3:
+            chunks = chunks[:3]
 
-        # Limit to 3 chunks for cost control
-        for i, chunk in enumerate(chunks[:3]):
-            optimized_prompt += f"Section {i+1}: {chunk}\n\n"
-
-        expected_tokens = sum(self.count_tokens(chunk)
-                              for chunk in chunks[:3]) + 200
+        combined_text = ' '.join(chunks)
+        expected_tokens = self.count_tokens(combined_text)
 
         return OptimizationResult(
-            optimized_prompt=optimized_prompt,
-            expected_tokens=expected_tokens,
-            confidence_score=0.85,
-            cost_estimate=expected_tokens * 0.000002,  # Rough OpenAI pricing
-            strategy_used="chunk"
+            strategy="chunk",
+            original_tokens=self.count_tokens(context.text),
+            optimized_tokens=expected_tokens,
+            cost_estimate=expected_tokens * 0.000002,
+            confidence=0.9,
+            optimized_prompt=f"Summarize these key sections: {combined_text}"
         )
 
-    def _template_strategy(self, context: SummaryContext) -> OptimizationResult:
-        """Template-based strategy using domain-specific prompts"""
+    def _template_strategy(self, context: TextContext) -> OptimizationResult:
         domain_templates = {
-            "technical": "Summarize this technical content, focusing on key concepts, methodologies, and outcomes: {text}",
-            "business": "Provide a business summary highlighting main objectives, strategies, and results: {text}",
-            "academic": "Summarize this academic content, emphasizing research findings and conclusions: {text}",
-            "news": "Create a news summary with key facts and developments: {text}",
-            "legal": "Summarize this legal content, focusing on main clauses and implications: {text}",
-            "general": "Provide a clear, concise summary of the main points: {text}"
+            'technical': "Provide a technical summary focusing on: methods, results, implications.",
+            'business': "Provide a business summary focusing on: objectives, metrics, outcomes.",
+            'academic': "Provide an academic summary focusing on: research question, methodology, findings.",
+            'legal': "Provide a legal summary focusing on: key provisions, obligations, implications.",
+            'medical': "Provide a medical summary focusing on: condition, treatment, outcomes.",
+            'news': "Provide a news summary focusing on: who, what, when, where, why."
         }
 
         template = domain_templates.get(
-            context.domain, domain_templates["general"])
-        optimized_prompt = template.format(text=context.text)
+            context.domain, "Provide a comprehensive summary.")
+        optimized_prompt = f"{template}\n\nText: {context.text}"
 
         return OptimizationResult(
-            optimized_prompt=optimized_prompt,
-            expected_tokens=self.count_tokens(optimized_prompt) + 150,
-            confidence_score=0.9,
-            cost_estimate=0.0012,
-            strategy_used="template"
+            strategy="template",
+            original_tokens=self.count_tokens(context.text),
+            optimized_tokens=self.count_tokens(optimized_prompt),
+            cost_estimate=self.count_tokens(optimized_prompt) * 0.000002,
+            confidence=0.7,
+            optimized_prompt=optimized_prompt
         )
 
-    def _shallow_train_strategy(self, context: SummaryContext) -> OptimizationResult:
-        """Shallow training strategy using few-shot examples"""
-        # Use similar texts from cache as few-shot examples
-        similar_texts = []
-        if hasattr(self, '_cached_similar'):
-            similar_texts = self._cached_similar
+    def _shallow_training_strategy(self, context: TextContext) -> OptimizationResult:
+        similar_texts = self.find_similar_texts(context.text, top_k=2)
 
         if similar_texts:
-            # Create few-shot prompt with examples
-            examples = ""
-            for example in similar_texts[:2]:  # Use top 2 similar examples
-                examples += f"Text: {example['text'][:200]}...\nSummary: {example['summary']}\n\n"
+            examples_prompt = "Based on these similar examples:\n"
+            for i, similar_text in enumerate(similar_texts, 1):
+                cached_summary = self.text_cache.get(similar_text, "")
+                examples_prompt += f"Example {i}: {similar_text[:200]}...\nSummary: {cached_summary}\n\n"
 
-            optimized_prompt = f"""Based on these examples:
-{examples}
-Now summarize this text: {context.text}"""
-
-            confidence_score = 0.95
+            optimized_prompt = f"{examples_prompt}Now summarize: {context.text}"
         else:
-            # Fallback to template strategy
-            return self._template_strategy(context)
+            optimized_prompt = f"Summarize the following text: {context.text}"
 
         return OptimizationResult(
+            strategy="shallow_train",
+            original_tokens=self.count_tokens(context.text),
+            optimized_tokens=self.count_tokens(optimized_prompt),
+            cost_estimate=self.count_tokens(optimized_prompt) * 0.000002,
+            confidence=0.6,
             optimized_prompt=optimized_prompt,
-            expected_tokens=self.count_tokens(optimized_prompt) + 120,
-            confidence_score=confidence_score,
-            cost_estimate=0.0015,
-            strategy_used="shallow_train"
+            similar_examples=similar_texts
         )
 
-    async def optimize_context(self, context: SummaryContext) -> OptimizationResult:
-        """Optimize context using the best strategy"""
-        # Find similar texts for potential reuse
-        similar_texts = await self.find_similar_texts(context.text)
-        self._cached_similar = similar_texts
+    def _cache_strategy(self, context: TextContext) -> OptimizationResult:
+        similar_texts = self.find_similar_texts(context.text, top_k=1)
 
-        # If we have very similar text, return cached result
-        if similar_texts and similar_texts[0]["similarity"] > 0.95:
+        if similar_texts and similar_texts[0] in self.text_cache:
+            cached_summary = self.text_cache[similar_texts[0]]
+
             return OptimizationResult(
-                optimized_prompt="",  # No prompt needed
-                expected_tokens=0,
-                confidence_score=1.0,
+                strategy="cache_hit",
+                original_tokens=self.count_tokens(context.text),
+                optimized_tokens=0,
                 cost_estimate=0.0,
-                strategy_used="cache_hit"
+                confidence=1.0,
+                optimized_prompt="",
+                similar_examples=[cached_summary]
             )
 
-        # Choose strategy based on text characteristics and budget
-        if context.estimated_tokens > 2000:
-            if context.cost_budget > 0.005:
-                return self._chunk_strategy(context)
-            else:
-                return self._compress_strategy(context)
-        elif similar_texts:
-            return self._shallow_train_strategy(context)
+        return self._compression_strategy(context)
+
+    def choose_strategy(self, context: TextContext) -> str:
+        similar_texts = self.find_similar_texts(context.text)
+        if similar_texts and similar_texts[0] in self.text_cache:
+            return 'cache_hit'
+
+        if context.length > 2000:
+            return 'chunk'
+        elif context.complexity > 0.7:
+            return 'compress'
+        elif context.domain != 'general':
+            return 'template'
         else:
-            return self._template_strategy(context)
+            return 'shallow_train'
 
+    def count_tokens(self, text: str) -> int:
+        return len(text.split())
 
-class LangGraphSummaryService:
-    """Advanced summarization service using LangGraph with cost optimization"""
+    def create_graph(self) -> StateGraph:
+        graph = StateGraph(ProcessingState)
 
-    def __init__(self):
-        self.default_api_key = os.getenv("OPENAI_API_KEY")
-        if not self.default_api_key or self.default_api_key == "your_openai_api_key_here":
-            raise ValueError("Please set your OpenAI API key in the .env file")
-
-        self.optimizer = ContextOptimizer()
-        self.model_config = {
-            "gpt-3.5-turbo": {"cost_per_token": 0.000002, "max_tokens": 4096},
-            "gpt-4": {"cost_per_token": 0.00006, "max_tokens": 8192},
-            "gpt-4-turbo": {"cost_per_token": 0.00003, "max_tokens": 128000}
-        }
-
-        # Initialize the graph
-        self.graph = self._create_summary_graph()
-
-    def _get_llm(self, api_key: Optional[str] = None, model: str = "gpt-3.5-turbo") -> ChatOpenAI:
-        """Get LangChain LLM instance"""
-        return ChatOpenAI(
-            openai_api_key=api_key or self.default_api_key,
-            model_name=model,
-            temperature=0.3,
-            streaming=True
-        )
-
-    def _create_summary_graph(self) -> StateGraph:
-        """Create LangGraph workflow for summarization"""
-
-        def analyze_input(state: Dict[str, Any]) -> Dict[str, Any]:
-            """Analyze input text and create context"""
-            text = state["text"]
-
-            context = SummaryContext(
-                text=text,
-                text_length=len(text),
-                estimated_tokens=self.optimizer.count_tokens(text),
-                complexity_score=self.optimizer.analyze_text_complexity(text),
-                domain=self.optimizer.detect_domain(text),
-                language="en",  # Default to English for now
-                user_preferences=state.get("preferences", {}),
-                cost_budget=state.get("cost_budget", 0.01)
-            )
-
-            state["context"] = context
-            state["analysis_complete"] = True
+        def analyze_node(state: ProcessingState) -> ProcessingState:
             return state
 
-        async def optimize_context(state: Dict[str, Any]) -> Dict[str, Any]:
-            """Optimize context for cost efficiency"""
-            context = state["context"]
-            optimization = await self.optimizer.optimize_context(context)
-
-            state["optimization"] = optimization
-            state["optimization_complete"] = True
+        def optimize_node(state: ProcessingState) -> ProcessingState:
+            strategy_name = self.choose_strategy(state.context)
+            strategy_func = self.strategies[strategy_name]
+            state.optimization = strategy_func(state.context)
             return state
 
-        async def check_cache(state: Dict[str, Any]) -> Dict[str, Any]:
-            """Check if we can use cached results"""
-            optimization = state["optimization"]
-
-            if optimization.strategy_used == "cache_hit":
-                # Use cached result
-                similar_texts = self.optimizer._cached_similar
-                if similar_texts:
-                    state["summary"] = similar_texts[0]["summary"]
-                    state["cached"] = True
-                    state["cost"] = 0.0
-                    return state
-
-            state["cached"] = False
+        def summarize_node(state: ProcessingState) -> ProcessingState:
             return state
 
-        async def generate_summary(state: Dict[str, Any]) -> Dict[str, Any]:
-            """Generate summary using optimized context"""
-            if state.get("cached"):
-                return state
+        graph.add_node("analyze", analyze_node)
+        graph.add_node("optimize", optimize_node)
+        graph.add_node("summarize", summarize_node)
 
-            optimization = state["optimization"]
-            context = state["context"]
+        graph.add_edge("analyze", "optimize")
+        graph.add_edge("optimize", "summarize")
+        graph.add_edge("summarize", END)
 
-            # Choose model based on complexity and budget
-            if context.complexity_score > 0.7 and context.cost_budget > 0.005:
-                model = "gpt-4-turbo"
-            elif context.estimated_tokens > 1000:
-                model = "gpt-4"
-            else:
-                model = "gpt-3.5-turbo"
+        graph.set_entry_point("analyze")
 
-            llm = self._get_llm(state.get("api_key"), model)
+        return graph.compile()
 
-            # Generate summary
-            messages = [SystemMessage(
-                content="You are an expert summarizer focused on clarity and conciseness.")]
-            messages.append(HumanMessage(
-                content=optimization.optimized_prompt))
+    async def process_with_langgraph(
+        self,
+        text: str,
+        max_length: int = 200,
+        api_key: Optional[str] = None,
+        budget: float = 1.0
+    ) -> Dict[str, Any]:
 
-            try:
-                response = await llm.ainvoke(messages)
-                summary = response.content.strip()
-
-                # Calculate actual cost
-                total_tokens = optimization.expected_tokens + \
-                    self.optimizer.count_tokens(summary)
-                actual_cost = total_tokens * \
-                    self.model_config[model]["cost_per_token"]
-
-                # Add to cache for future use
-                self.optimizer.add_to_cache(
-                    context.text,
-                    summary,
-                    optimization.strategy_used
-                )
-
-                state["summary"] = summary
-                state["cost"] = actual_cost
-                state["model_used"] = model
-                state["tokens_used"] = total_tokens
-
-            except Exception as e:
-                state["error"] = str(e)
-
-            return state
-
-        def route_after_cache(state: Dict[str, Any]) -> str:
-            """Route after cache check"""
-            return "end" if state.get("cached") else "generate_summary"
-
-        # Build the graph
-        workflow = StateGraph(dict)
-
-        # Add nodes
-        workflow.add_node("analyze_input", analyze_input)
-        workflow.add_node("optimize_context", optimize_context)
-        workflow.add_node("check_cache", check_cache)
-        workflow.add_node("generate_summary", generate_summary)
-
-        # Add edges
-        workflow.set_entry_point("analyze_input")
-        workflow.add_edge("analyze_input", "optimize_context")
-        workflow.add_edge("optimize_context", "check_cache")
-        workflow.add_conditional_edges(
-            "check_cache",
-            route_after_cache,
-            {
-                "generate_summary": "generate_summary",
-                "end": END
-            }
-        )
-        workflow.add_edge("generate_summary", END)
-
-        return workflow.compile()
-
-    async def validate_api_key(self, api_key: str) -> Tuple[bool, str]:
-        """Validate API key using LangChain"""
-        try:
-            llm = self._get_llm(api_key)
-            response = await llm.ainvoke([HumanMessage(content="Test")])
-            return True, "API key is valid"
-        except Exception as e:
-            return False, f"API key validation failed: {str(e)}"
-
-    async def summarize(self,
-                        text: str,
-                        max_length: Optional[int] = 200,
-                        api_key: Optional[str] = None,
-                        cost_budget: float = 0.01,
-                        preferences: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Summarize text using LangGraph workflow"""
-
-        if not text.strip():
-            raise ValueError("Text cannot be empty")
-
-        # Prepare initial state
-        initial_state = {
-            "text": text,
-            "max_length": max_length,
-            "api_key": api_key,
-            "cost_budget": cost_budget,
-            "preferences": preferences or {}
-        }
-
-        try:
-            # Run the graph
-            result = await self.graph.ainvoke(initial_state)
-
-            if "error" in result:
-                raise HTTPException(status_code=500, detail=result["error"])
-
-            return {
-                "summary": result["summary"],
-                "cost": result.get("cost", 0.0),
-                "model_used": result.get("model_used", "unknown"),
-                "tokens_used": result.get("tokens_used", 0),
-                "strategy": result.get("optimization", {}).get("strategy_used", "unknown"),
-                "cached": result.get("cached", False)
-            }
-
-        except Exception as e:
-            raise HTTPException(
-                status_code=500, detail=f"Summarization failed: {str(e)}")
-
-    async def summarize_stream(self,
-                               text: str,
-                               max_length: Optional[int] = 200,
-                               api_key: Optional[str] = None,
-                               cost_budget: float = 0.01,
-                               preferences: Optional[Dict[str, Any]] = None) -> AsyncGenerator[str, None]:
-        """Stream summarization using LangGraph workflow"""
-
-        if not text.strip():
-            raise ValueError("Text cannot be empty")
-
-        # First, run optimization phase
-        context = SummaryContext(
+        context = TextContext(
             text=text,
-            text_length=len(text),
-            estimated_tokens=self.optimizer.count_tokens(text),
-            complexity_score=self.optimizer.analyze_text_complexity(text),
-            domain=self.optimizer.detect_domain(text),
-            language="en",
-            user_preferences=preferences or {},
-            cost_budget=cost_budget
+            length=len(text.split()),
+            complexity=self.analyze_complexity(text),
+            domain=self.detect_domain(text),
+            budget=budget
         )
 
-        optimization = await self.optimizer.optimize_context(context)
+        initial_state = ProcessingState(
+            context=context,
+            metadata={
+                "timestamp": datetime.now().isoformat(),
+                "max_length": max_length,
+                "has_api_key": api_key is not None,
+                "budget": budget,
+                "domain": context.domain,
+                "complexity": context.complexity,
+                "length": context.length,
+                "language": "en",
+            }
+        )
 
-        # Check for cache hit
-        if optimization.strategy_used == "cache_hit":
-            similar_texts = self.optimizer._cached_similar
-            if similar_texts:
-                summary = similar_texts[0]["summary"]
-                # Stream cached result word by word
-                words = summary.split()
-                for word in words:
-                    yield word + " "
-                    # Small delay for streaming effect
-                    await asyncio.sleep(0.01)
-                return
+        graph = self.create_graph()
 
-        # Choose model for streaming
-        if context.complexity_score > 0.7 and cost_budget > 0.005:
-            model = "gpt-4-turbo"
-        elif context.estimated_tokens > 1000:
+        final_state = await graph.ainvoke(initial_state)
+
+        return {
+            "summary": final_state.final_summary,
+            "metadata": final_state.metadata,
+            "optimization": {
+                "strategy": final_state.optimization.strategy if final_state.optimization else "none",
+                "cost_saved": 0.0,
+                "tokens_saved": 0
+            }
+        }
+
+    async def process_with_streaming(
+        self,
+        text: str,
+        max_length: int = 200,
+        api_key: Optional[str] = None,
+        budget: float = 1.0
+    ) -> AsyncGenerator[str, None]:
+
+        context = TextContext(
+            text=text,
+            length=len(text.split()),
+            complexity=self.analyze_complexity(text),
+            domain=self.detect_domain(text),
+            budget=budget
+        )
+
+        strategy_name = self.choose_strategy(context)
+        optimization = self.strategies[strategy_name](context)
+
+        if strategy_name == 'cache_hit' and optimization.similar_examples:
+            cached_summary = optimization.similar_examples[0]
+            words = cached_summary.split()
+            for i, word in enumerate(words):
+                yield f"data: {word}"
+                if i < len(words) - 1:
+                    yield f"data: "
+                await asyncio.sleep(0.05)
+            return
+
+        model = "gpt-3.5-turbo"
+        if context.complexity > 0.8 and budget > 0.5:
             model = "gpt-4"
-        else:
-            model = "gpt-3.5-turbo"
+        elif context.length > 1000 and budget > 0.3:
+            model = "gpt-3.5-turbo-16k"
 
-        llm = self._get_llm(api_key, model)
+        client = AsyncOpenAI(api_key=api_key) if api_key else AsyncOpenAI()
 
         try:
-            messages = [SystemMessage(
-                content="You are an expert summarizer focused on clarity and conciseness.")]
-            messages.append(HumanMessage(
-                content=optimization.optimized_prompt))
+            stream = await client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "user", "content": optimization.optimized_prompt}],
+                max_tokens=max_length * 2,
+                temperature=0.7,
+                stream=True
+            )
 
-            # Stream the response
-            async for chunk in llm.astream(messages):
-                if chunk.content:
-                    yield chunk.content
+            full_summary = ""
+            async for chunk in stream:
+                if chunk.choices[0].delta.content:
+                    content = chunk.choices[0].delta.content
+                    full_summary += content
+                    yield f"data: {content}"
+
+            self.add_to_cache(text, full_summary)
 
         except Exception as e:
-            raise HTTPException(
-                status_code=500, detail=f"Stream failed: {str(e)}")
+            yield f"data: Error: {str(e)}"
 
 
-# Global service instance
-langgraph_service = LangGraphSummaryService()
+langgraph_service = SmartLangGraphService()
+
+
+async def test_all_strategies():
+    service = SmartLangGraphService()
+    test_text = "This is a test document for validating optimization strategies."
+
+    context = TextContext(
+        text=test_text,
+        length=len(test_text.split()),
+        complexity=0.5,
+        domain="general"
+    )
+
+    results = {}
+    for strategy_name, strategy_func in service.strategies.items():
+        try:
+            result = strategy_func(context)
+            results[strategy_name] = result
+            print(f"{strategy_name}: {result.confidence:.2f} confidence")
+        except Exception as e:
+            print(f"{strategy_name} failed: {e}")
+
+    return results

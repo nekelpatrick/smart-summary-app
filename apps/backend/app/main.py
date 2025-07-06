@@ -1,8 +1,11 @@
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from typing import Optional, Dict, Any, List
 import os
-from typing import Optional, Dict, Any
+from contextlib import asynccontextmanager
+import httpx
 from dotenv import load_dotenv
 
 from .models import (
@@ -14,7 +17,11 @@ from .models import (
     ProviderInfo,
     PROVIDER_CONFIG,
     LLMProvider,
-    is_provider_enabled
+    is_provider_enabled,
+    SummaryRequest,
+    ExampleResponse,
+    ProvidersResponse,
+    ProviderStatus,
 )
 from .services.llm_service import LLMService
 # TODO: Re-enable when LangGraph dependencies are installed
@@ -22,7 +29,17 @@ from .services.llm_service import LLMService
 
 load_dotenv()
 
-app = FastAPI(title="Smart Summary API", version="2.0.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+
+app = FastAPI(
+    title="Smart Summary API",
+    description="A FastAPI backend for text summarization with OpenAI integration",
+    version="1.0.0",
+    lifespan=lifespan,
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -38,138 +55,139 @@ llm = LLMService()  # Legacy service for backward compatibility
 # langgraph_llm = langgraph_service  # New LangGraph service
 
 
+class HealthResponse(BaseModel):
+    status: str
+    message: str
+
+
+@app.get("/health", response_model=HealthResponse)
+async def health_check():
+    return HealthResponse(status="healthy", message="API is running")
+
+
 @app.get("/")
 async def root():
-    return {
-        "message": "Smart Summary API with LangGraph",
-        "version": "2.0.0",
-        "features": [
-            "Multi-provider support",
-            "Context optimization",
-            "Cost reduction strategies",
-            "Shallow training capabilities",
-            "Advanced caching",
-            "Real-time streaming"
-        ],
-        "status": "LangGraph features temporarily disabled - installing dependencies"
-    }
+    return {"message": "Smart Summary API"}
 
 
-@app.get("/health")
-async def health():
-    return {
-        "status": "healthy",
-        "services": {
-            "legacy_llm": "active",
-            "langgraph_llm": "pending_dependencies",
-            "context_optimizer": "pending_dependencies",
-            "cache_system": "pending_dependencies"
-        }
-    }
-
-
-@app.get("/providers", response_model=ProvidersListResponse)
-async def get_providers():
-    """Get list of available LLM providers and their status"""
-    providers = []
-
-    for provider_id, config in PROVIDER_CONFIG.items():
-        provider_info = ProviderInfo(
-            id=provider_id,
-            name=config["name"],
-            description=config["description"],
-            status=config["status"],
-            enabled=is_provider_enabled(provider_id),
-            key_prefix=config["key_prefix"],
-            min_key_length=config["min_key_length"]
+@app.get("/example", response_model=ExampleResponse)
+async def get_example():
+    example_file = os.path.join(os.path.dirname(
+        __file__), "..", "example_text.md")
+    if os.path.exists(example_file):
+        with open(example_file, "r", encoding="utf-8") as f:
+            example_text = f.read()
+        return ExampleResponse(
+            text=example_text,
+            source="example file",
+            description="Sample text for demonstration"
         )
-        providers.append(provider_info)
+    else:
+        return ExampleResponse(
+            text="Your meeting covered several key topics including project timelines, budget allocation, and team responsibilities. The discussion also touched on upcoming milestones and potential challenges that may arise during implementation.",
+            source="fallback",
+            description="Default example text"
+        )
 
-    return ProvidersListResponse(
+
+@app.get("/providers", response_model=ProvidersResponse)
+async def get_providers():
+    providers = [
+        ProviderInfo(
+            id=LLMProvider.OPENAI,
+            name="OpenAI",
+            description="GPT models (GPT-3.5, GPT-4, etc.)",
+            status=ProviderStatus.ENABLED,
+            enabled=True,
+            key_prefix="sk-",
+            min_key_length=51
+        ),
+        ProviderInfo(
+            id=LLMProvider.ANTHROPIC,
+            name="Anthropic",
+            description="Claude models",
+            status=ProviderStatus.DISABLED,
+            enabled=False,
+            key_prefix="sk-ant-",
+            min_key_length=100
+        ),
+        ProviderInfo(
+            id=LLMProvider.GOOGLE,
+            name="Google",
+            description="Gemini models",
+            status=ProviderStatus.DISABLED,
+            enabled=False,
+            key_prefix="AI",
+            min_key_length=30
+        ),
+    ]
+
+    return ProvidersResponse(
         providers=providers,
-        default_provider=LLMProvider.OPENAI
+        default_provider=LLMProvider.OPENAI,
+        total=len(providers)
     )
 
 
 @app.post("/validate-api-key", response_model=ApiKeyValidationResponse)
 async def validate_api_key(request: ApiKeyValidationRequest):
-    """Validate an API key for the specified provider"""
     try:
-        # Only OpenAI is currently supported for validation
-        if request.provider != LLMProvider.OPENAI:
-            return ApiKeyValidationResponse(
-                valid=False,
-                message=f"{PROVIDER_CONFIG[request.provider]['name']} provider is not currently supported. Only OpenAI is available.",
-                provider=request.provider
-            )
-
-        # Use legacy service for now
-        is_valid, message = await llm.validate_api_key(request.api_key)
+        is_valid = await llm.validate_api_key(request.api_key, request.provider)
         return ApiKeyValidationResponse(
             valid=is_valid,
-            message=message,
+            message="API key is valid" if is_valid else "API key is invalid",
             provider=request.provider
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"API key validation failed: {str(e)}")
+        return ApiKeyValidationResponse(
+            valid=False,
+            message=str(e),
+            provider=request.provider
+        )
 
 
-@app.get("/example")
-async def example():
-    try:
-        file_path = os.path.join(os.path.dirname(
-            __file__), "..", "example_text.md")
-        with open(file_path, "r", encoding="utf-8") as f:
-            content = f.read()
-        return {"text": content}
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="Example text not found")
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error reading example: {str(e)}")
-
-
-# Legacy endpoints for backward compatibility
 @app.post("/summarize", response_model=SummaryResponse)
-async def summarize(request: TextRequest):
-    """Legacy summarization endpoint (backward compatibility)"""
+async def summarize_text(request: SummaryRequest):
     try:
-        # Only OpenAI is currently supported for summarization
-        if request.provider != LLMProvider.OPENAI:
-            raise HTTPException(
-                status_code=400,
-                detail=f"{PROVIDER_CONFIG[request.provider]['name']} provider is not currently supported. Only OpenAI is available."
-            )
-
-        summary = await llm.summarize(request.text, request.max_length, request.api_key)
-        return SummaryResponse(summary=summary)
+        summary = await llm.summarize_text(
+            request.text,
+            request.max_length,
+            request.api_key,
+            request.provider
+        )
+        return SummaryResponse(
+            summary=summary,
+            original_length=len(request.text),
+            summary_length=len(summary),
+            provider=request.provider
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/summarize/stream")
-async def summarize_stream(request: TextRequest):
-    """Legacy streaming endpoint (backward compatibility)"""
+async def summarize_text_stream(request: SummaryRequest):
     try:
-        # Only OpenAI is currently supported for streaming
-        if request.provider != LLMProvider.OPENAI:
-            raise HTTPException(
-                status_code=400,
-                detail=f"{PROVIDER_CONFIG[request.provider]['name']} provider is not currently supported. Only OpenAI is available."
-            )
-
-        async def generate():
-            async for chunk in llm.summarize_stream(request.text, request.max_length, request.api_key):
-                yield f"data: {chunk}\n\n"
-            yield "data: [DONE]\n\n"
-
-        return StreamingResponse(generate(), media_type="text/plain")
+        stream = llm.summarize_text_stream(
+            request.text,
+            request.max_length,
+            request.api_key,
+            request.provider
+        )
+        return StreamingResponse(
+            stream,
+            media_type="text/plain",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+            }
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 # New enhanced endpoints using LangGraph - TODO: Re-enable when dependencies are installed
+
+
 @app.post("/v2/summarize")
 async def enhanced_summarize(
     request: TextRequest,
@@ -226,7 +244,6 @@ async def clear_cache():
         status_code=503,
         detail="Cache management temporarily unavailable - LangGraph dependencies being installed"
     )
-
 
 if __name__ == "__main__":
     import uvicorn

@@ -1,283 +1,282 @@
 import { config } from '../config';
+import type { 
+  SummaryRequest, 
+  SummaryResponse, 
+  ApiKeyValidationRequest, 
+  ApiKeyValidationResponse,
+  ExampleResponse,
+  ApiError
+} from '../types';
 
-export interface EnhancedSummaryRequest {
-  text: string;
-  max_length?: number;
-  api_key?: string;
-  provider?: string;
-  cost_budget?: number;
-  preferences?: Record<string, unknown>;
+interface TextAnalysis {
+  word_count: number;
+  sentence_count: number;
+  paragraph_count: number;
+  reading_time_minutes: number;
+  complexity_score: number;
+  domain: string;
+  language: string;
 }
 
-export interface EnhancedSummaryResponse {
-  summary: string;
-  metadata: {
-    cost: number;
-    model_used: string;
-    tokens_used: number;
-    strategy: string;
-    cached: boolean;
-    cost_budget: number;
-  };
+interface OptimizationStrategy {
+  strategy: string;
+  original_tokens: number;
+  optimized_tokens: number;
+  estimated_cost: number;
+  confidence: number;
+  explanation: string;
 }
 
-export interface TextAnalysis {
-  analysis: {
-    text_length: number;
-    estimated_tokens: number;
-    complexity_score: number;
-    detected_domain: string;
-    language: string;
-  };
-  optimization: {
-    recommended_strategy: string;
-    expected_tokens: number;
-    confidence_score: number;
-    estimated_cost: number;
-  };
-  similar_texts_found: number;
-  recommendations: {
-    use_cache: boolean;
-    cost_effective: boolean;
-    complexity_appropriate: boolean;
-  };
-}
-
-export interface Analytics {
+interface Analytics {
   total_summaries: number;
-  strategies_used: Record<string, number>;
+  cache_hits: number;
+  cache_misses: number;
+  average_processing_time: number;
   estimated_cost_savings: number;
   cache_size: number;
+  strategies_used: Record<string, number>;
   domains_detected: string[];
 }
 
+interface EnhancedSummaryRequest extends SummaryRequest {
+  enable_optimization?: boolean;
+  context_strategy?: string;
+}
+
+interface EnhancedSummaryResponse extends SummaryResponse {
+  optimization_used: OptimizationStrategy;
+  analysis: TextAnalysis;
+  processing_time: number;
+}
+
 class EnhancedApiService {
-  private baseUrl = config.apiUrl;
+  private baseUrl: string;
+  private defaultHeaders: Record<string, string>;
 
-  async enhancedSummarize(request: EnhancedSummaryRequest): Promise<EnhancedSummaryResponse> {
-    const url = new URL(`${this.baseUrl}/v2/summarize`);
-    
-    if (request.cost_budget) {
-      url.searchParams.append('cost_budget', request.cost_budget.toString());
-    }
+  constructor() {
+    this.baseUrl = config.apiUrl;
+    this.defaultHeaders = {
+      'Content-Type': 'application/json',
+    };
+  }
 
-    const response = await fetch(url.toString(), {
-      method: 'POST',
+  private async request<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<T> {
+    const url = `${this.baseUrl}${endpoint}`;
+    const response = await fetch(url, {
+      ...options,
       headers: {
-        'Content-Type': 'application/json',
+        ...this.defaultHeaders,
+        ...options.headers,
       },
-      body: JSON.stringify({
-        text: request.text,
-        max_length: request.max_length || 200,
-        api_key: request.api_key || '',
-        provider: request.provider || 'openai',
-        preferences: request.preferences || {}
-      }),
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Enhanced summarization failed');
+      const errorData = await response.json().catch(() => ({}));
+      const error: ApiError = {
+        detail: errorData.detail || `HTTP error! status: ${response.status}`,
+        status: response.status,
+      };
+      throw error;
     }
 
     return response.json();
+  }
+
+  async validateApiKey(request: ApiKeyValidationRequest): Promise<ApiKeyValidationResponse> {
+    return this.request<ApiKeyValidationResponse>('/validate-api-key', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+
+  async getExample(): Promise<ExampleResponse> {
+    return this.request<ExampleResponse>('/example');
+  }
+
+  async summarizeText(
+    request: SummaryRequest,
+    onProgress?: (content: string) => void
+  ): Promise<string> {
+    const response = await fetch(`${this.baseUrl}/summarize/stream`, {
+      method: 'POST',
+      headers: this.defaultHeaders,
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const error: ApiError = {
+        detail: errorData.detail || `HTTP error! status: ${response.status}`,
+        status: response.status,
+      };
+      throw error;
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error('No response body');
+    }
+
+    let fullContent = '';
+    const decoder = new TextDecoder();
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const content = line.slice(6);
+            if (content === '[DONE]') {
+              return fullContent;
+            }
+            fullContent += content;
+            onProgress?.(fullContent);
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    return fullContent;
+  }
+
+  async enhancedSummarize(request: EnhancedSummaryRequest): Promise<EnhancedSummaryResponse> {
+    return this.request<EnhancedSummaryResponse>('/v2/summarize', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
   }
 
   async enhancedSummarizeStream(
     request: EnhancedSummaryRequest,
-    onChunk: (chunk: string) => void,
-    onComplete: (metadata?: Record<string, unknown>) => void,
-    onError: (error: string) => void
-  ): Promise<void> {
-    const url = new URL(`${this.baseUrl}/v2/summarize/stream`);
-    
-    if (request.cost_budget) {
-      url.searchParams.append('cost_budget', request.cost_budget.toString());
+    onProgress?: (content: string) => void
+  ): Promise<EnhancedSummaryResponse> {
+    const response = await fetch(`${this.baseUrl}/v2/summarize/stream`, {
+      method: 'POST',
+      headers: this.defaultHeaders,
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const error: ApiError = {
+        detail: errorData.detail || `HTTP error! status: ${response.status}`,
+        status: response.status,
+      };
+      throw error;
     }
 
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error('No response body');
+    }
+
+    let fullContent = '';
+    const decoder = new TextDecoder();
+
     try {
-      const response = await fetch(url.toString(), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          text: request.text,
-          max_length: request.max_length || 200,
-          api_key: request.api_key || '',
-          provider: request.provider || 'openai',
-          preferences: request.preferences || {}
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Enhanced streaming failed');
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('No response body');
-      }
-
-      const decoder = new TextDecoder();
-      let buffer = '';
-
       while (true) {
         const { done, value } = await reader.read();
-        
         if (done) break;
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
 
         for (const line of lines) {
           if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            
-            if (data === '[DONE]') {
-              onComplete();
-              return;
+            const content = line.slice(6);
+            if (content === '[DONE]') {
+              const finalResponse = JSON.parse(fullContent) as EnhancedSummaryResponse;
+              return finalResponse;
             }
-            
-            if (data.startsWith('[ERROR]')) {
-              onError(data.slice(8));
-              return;
-            }
-            
-            onChunk(data);
+            fullContent += content;
+            onProgress?.(fullContent);
           }
         }
       }
-    } catch (error) {
-      onError(error instanceof Error ? error.message : 'Unknown error');
+    } finally {
+      reader.releaseLock();
     }
+
+    return JSON.parse(fullContent) as EnhancedSummaryResponse;
   }
 
   async analyzeText(text: string, apiKey?: string): Promise<TextAnalysis> {
-    const response = await fetch(`${this.baseUrl}/v2/analyze`, {
+    return this.request<TextAnalysis>('/v2/analyze', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        text: text,
-        ...(apiKey && { api_key: apiKey })
-      }),
+      body: JSON.stringify({ text, api_key: apiKey }),
     });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Text analysis failed');
-    }
-
-    return response.json();
   }
 
   async getAnalytics(): Promise<Analytics> {
-    const response = await fetch(`${this.baseUrl}/v2/analytics`);
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Analytics fetch failed');
-    }
-
-    return response.json();
+    return this.request<Analytics>('/v2/analytics');
   }
 
-  async clearCache(): Promise<{ message: string; items_removed: number }> {
-    const response = await fetch(`${this.baseUrl}/v2/cache`, {
+  async clearCache(): Promise<{ message: string }> {
+    return this.request<{ message: string }>('/v2/cache', {
       method: 'DELETE',
     });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Cache clear failed');
-    }
-
-    return response.json();
   }
 
-  // Cost estimation utilities
   estimateCost(tokens: number, model: string = 'gpt-3.5-turbo'): number {
-    const rates = {
-      'gpt-3.5-turbo': 0.000002,
-      'gpt-4': 0.00006,
-      'gpt-4-turbo': 0.00003
+    const pricing = {
+      'gpt-3.5-turbo': 0.002,
+      'gpt-4': 0.06,
+      'gpt-4-turbo': 0.01,
     };
-
-    return tokens * (rates[model as keyof typeof rates] || rates['gpt-3.5-turbo']);
+    
+    const rate = pricing[model as keyof typeof pricing] || 0.002;
+    return (tokens / 1000) * rate;
   }
 
-  // Optimization suggestions
-  getOptimizationSuggestions(analysis: TextAnalysis): string[] {
-    const suggestions: string[] = [];
-
-    if (analysis.analysis.complexity_score > 0.8) {
-      suggestions.push('Consider breaking down complex text into smaller sections');
+  generateOptimizationSuggestions(analysis: TextAnalysis): OptimizationStrategy[] {
+    const suggestions: OptimizationStrategy[] = [];
+    
+    if (analysis.word_count > 1000) {
+      suggestions.push({
+        strategy: 'chunk',
+        original_tokens: analysis.word_count,
+        optimized_tokens: Math.floor(analysis.word_count * 0.7),
+        estimated_cost: this.estimateCost(analysis.word_count * 0.7),
+        confidence: 0.8,
+        explanation: 'Break text into smaller chunks for better processing'
+      });
     }
-
-    if (analysis.analysis.estimated_tokens > 2000) {
-      suggestions.push('Text is long - compression strategy recommended');
+    
+    if (analysis.complexity_score > 0.7) {
+      suggestions.push({
+        strategy: 'compress',
+        original_tokens: analysis.word_count,
+        optimized_tokens: Math.floor(analysis.word_count * 0.6),
+        estimated_cost: this.estimateCost(analysis.word_count * 0.6),
+        confidence: 0.9,
+        explanation: 'Use compression techniques for complex content'
+      });
     }
-
-    if (analysis.similar_texts_found > 0) {
-      suggestions.push('Similar texts found - cache optimization available');
+    
+    if (analysis.domain && analysis.domain !== 'general') {
+      suggestions.push({
+        strategy: 'template',
+        original_tokens: analysis.word_count,
+        optimized_tokens: Math.floor(analysis.word_count * 0.5),
+        estimated_cost: this.estimateCost(analysis.word_count * 0.5),
+        confidence: 0.7,
+        explanation: `Use domain-specific templates for ${analysis.domain} content`
+      });
     }
-
-    if (!analysis.recommendations.cost_effective) {
-      suggestions.push('Consider using a smaller model or reducing text length');
-    }
-
-    if (analysis.optimization.confidence_score < 0.7) {
-      suggestions.push('Low confidence - manual review recommended');
-    }
-
+    
     return suggestions;
-  }
-
-  // Domain-specific optimization
-  getDomainOptimization(domain: string): {
-    strategy: string;
-    description: string;
-    expectedSavings: number;
-  } {
-    const optimizations = {
-      technical: {
-        strategy: 'template',
-        description: 'Using technical documentation templates',
-        expectedSavings: 0.15
-      },
-      business: {
-        strategy: 'template',
-        description: 'Using business report templates',
-        expectedSavings: 0.12
-      },
-      academic: {
-        strategy: 'template',
-        description: 'Using academic paper templates',
-        expectedSavings: 0.18
-      },
-      news: {
-        strategy: 'compress',
-        description: 'Using news article compression',
-        expectedSavings: 0.20
-      },
-      legal: {
-        strategy: 'template',
-        description: 'Using legal document templates',
-        expectedSavings: 0.10
-      },
-      general: {
-        strategy: 'compress',
-        description: 'Using general text compression',
-        expectedSavings: 0.08
-      }
-    };
-
-    return optimizations[domain as keyof typeof optimizations] || optimizations.general;
   }
 }
 
-export const enhancedApiService = new EnhancedApiService(); 
+export const enhancedApiService = new EnhancedApiService();
+export type { TextAnalysis, OptimizationStrategy, Analytics, EnhancedSummaryRequest, EnhancedSummaryResponse }; 

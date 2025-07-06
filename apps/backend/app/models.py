@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field, field_validator
-from typing import Optional
+from pydantic import BaseModel, Field, field_validator, ValidationInfo
+from typing import Optional, List, Dict, Any, Union
 from enum import Enum
 import re
 
@@ -15,147 +15,64 @@ class LLMProvider(str, Enum):
 class ProviderStatus(str, Enum):
     ENABLED = "enabled"
     DISABLED = "disabled"
-    COMING_SOON = "coming_soon"
+    DEPRECATED = "deprecated"
 
 
-# Provider configuration - only OpenAI is enabled
 PROVIDER_CONFIG = {
     LLMProvider.OPENAI: {
-        "status": ProviderStatus.ENABLED,
         "name": "OpenAI",
         "description": "GPT models (GPT-3.5, GPT-4, etc.)",
-        "key_format": r'^sk-[a-zA-Z0-9]{48,}$',
+        "status": ProviderStatus.ENABLED,
+        "enabled": True,
         "key_prefix": "sk-",
-        "min_key_length": 51
+        "min_key_length": 51,
+        "key_pattern": r"^sk-[a-zA-Z0-9]{48}$|^sk-proj-[a-zA-Z0-9]{64}$"
     },
     LLMProvider.ANTHROPIC: {
-        "status": ProviderStatus.DISABLED,
         "name": "Anthropic",
-        "description": "Claude models (Claude-3, Claude-2, etc.)",
-        "key_format": r'^sk-ant-[a-zA-Z0-9\-]{95,}$',
+        "description": "Claude models",
+        "status": ProviderStatus.DISABLED,
+        "enabled": False,
         "key_prefix": "sk-ant-",
-        "min_key_length": 100
+        "min_key_length": 100,
+        "key_pattern": r"^sk-ant-[a-zA-Z0-9-_]{95}$"
     },
     LLMProvider.GOOGLE: {
-        "status": ProviderStatus.COMING_SOON,
         "name": "Google",
         "description": "Gemini models",
-        "key_format": r'^[a-zA-Z0-9\-_]{39}$',
-        "key_prefix": "",
-        "min_key_length": 39
+        "status": ProviderStatus.DISABLED,
+        "enabled": False,
+        "key_prefix": "AI",
+        "min_key_length": 30,
+        "key_pattern": r"^AI[a-zA-Z0-9-_]{30,}$"
     },
     LLMProvider.MISTRAL: {
-        "status": ProviderStatus.COMING_SOON,
-        "name": "Mistral AI",
+        "name": "Mistral",
         "description": "Mistral models",
-        "key_format": r'^[a-zA-Z0-9]{32}$',
-        "key_prefix": "",
-        "min_key_length": 32
+        "status": ProviderStatus.DISABLED,
+        "enabled": False,
+        "key_prefix": "api_key",
+        "min_key_length": 32,
+        "key_pattern": r"^[a-zA-Z0-9]{32}$"
     },
     LLMProvider.COHERE: {
-        "status": ProviderStatus.COMING_SOON,
         "name": "Cohere",
-        "description": "Command models",
-        "key_format": r'^[a-zA-Z0-9\-]{40}$',
-        "key_prefix": "",
-        "min_key_length": 40
+        "description": "Cohere models",
+        "status": ProviderStatus.DISABLED,
+        "enabled": False,
+        "key_prefix": "co-",
+        "min_key_length": 40,
+        "key_pattern": r"^co-[a-zA-Z0-9]{40}$"
     }
 }
 
 
-def validate_api_key_format(api_key: str, provider: LLMProvider) -> bool:
-    """Validate API key format for the specified provider"""
-    if provider not in PROVIDER_CONFIG:
-        return False
-
-    config = PROVIDER_CONFIG[provider]
-    pattern = config["key_format"]
-    return bool(re.match(pattern, api_key))
-
-
 def is_provider_enabled(provider: LLMProvider) -> bool:
-    """Check if a provider is currently enabled"""
-    return PROVIDER_CONFIG.get(provider, {}).get("status") == ProviderStatus.ENABLED
-
-
-class TextRequest(BaseModel):
-    text: str = Field(..., min_length=1, max_length=10000)
-    max_length: Optional[int] = Field(200, gt=0, le=1000)
-    api_key: Optional[str] = Field(None, description="Optional custom API key")
-    provider: LLMProvider = Field(
-        LLMProvider.OPENAI, description="LLM provider to use")
-
-    @field_validator('text')
-    @classmethod
-    def validate_text(cls, v):
-        if not v or not v.strip():
-            raise ValueError('Text cannot be empty or only whitespace')
-        return v
-
-    @field_validator('provider')
-    @classmethod
-    def validate_provider(cls, v):
-        if not is_provider_enabled(v):
-            raise ValueError(
-                f'Provider {v} is not currently supported. Only OpenAI is available.')
-        return v
-
-    @field_validator('api_key')
-    @classmethod
-    def validate_api_key(cls, v, info):
-        if v is not None:
-            if not v.strip():
-                raise ValueError('API key cannot be empty or only whitespace')
-
-            # Get the provider from the context (if available)
-            provider = info.data.get('provider', LLMProvider.OPENAI)
-
-            # Validate key format for the specified provider
-            if not validate_api_key_format(v.strip(), provider):
-                provider_name = PROVIDER_CONFIG[provider]["name"]
-                raise ValueError(f'Invalid {provider_name} API key format')
-
-        return v.strip() if v else None
-
-
-class ApiKeyValidationRequest(BaseModel):
-    api_key: str = Field(..., description="API key to validate")
-    provider: LLMProvider = Field(
-        LLMProvider.OPENAI, description="LLM provider for the API key")
-
-    @field_validator('provider')
-    @classmethod
-    def validate_provider(cls, v):
-        if not is_provider_enabled(v):
-            raise ValueError(
-                f'Provider {v} is not currently supported. Only OpenAI is available.')
-        return v
-
-    @field_validator('api_key')
-    @classmethod
-    def validate_api_key(cls, v, info):
-        if not v or not v.strip():
-            raise ValueError('API key cannot be empty or only whitespace')
-
-        # Get the provider from the context
-        provider = info.data.get('provider', LLMProvider.OPENAI)
-
-        # Validate key format for the specified provider
-        if not validate_api_key_format(v.strip(), provider):
-            provider_name = PROVIDER_CONFIG[provider]["name"]
-            raise ValueError(f'Invalid {provider_name} API key format')
-
-        return v.strip()
-
-
-class ApiKeyValidationResponse(BaseModel):
-    valid: bool
-    message: str
-    provider: str
+    return PROVIDER_CONFIG.get(provider, {}).get("enabled", False)
 
 
 class ProviderInfo(BaseModel):
-    id: str
+    id: LLMProvider
     name: str
     description: str
     status: ProviderStatus
@@ -164,10 +81,139 @@ class ProviderInfo(BaseModel):
     min_key_length: int
 
 
-class ProvidersListResponse(BaseModel):
-    providers: list[ProviderInfo]
-    default_provider: str = LLMProvider.OPENAI
+class ProvidersResponse(BaseModel):
+    providers: List[ProviderInfo]
+    default_provider: LLMProvider
+    total: int
+
+
+class ApiKeyValidationRequest(BaseModel):
+    api_key: str
+    provider: LLMProvider = LLMProvider.OPENAI
+
+    @field_validator('api_key')
+    @classmethod
+    def validate_api_key_format(cls, v: str, info: ValidationInfo) -> str:
+        if not v or not v.strip():
+            raise ValueError("API key cannot be empty")
+
+        provider = info.data.get('provider', LLMProvider.OPENAI)
+        config = PROVIDER_CONFIG.get(provider, {})
+
+        if config.get('key_pattern'):
+            if not re.match(config['key_pattern'], v):
+                raise ValueError(
+                    f"Invalid API key format for {config.get('name', provider)}")
+
+        return v.strip()
+
+
+class ApiKeyValidationResponse(BaseModel):
+    valid: bool
+    message: str
+    provider: LLMProvider
+
+
+class SummaryRequest(BaseModel):
+    text: str
+    max_length: int = Field(default=200, ge=50, le=1000)
+    api_key: Optional[str] = None
+    provider: LLMProvider = LLMProvider.OPENAI
+
+    @field_validator('api_key')
+    @classmethod
+    def validate_api_key_format(cls, v: Optional[str], info: ValidationInfo) -> Optional[str]:
+        if not v:
+            return None
+
+        provider = info.data.get('provider', LLMProvider.OPENAI)
+        config = PROVIDER_CONFIG.get(provider, {})
+
+        if config.get('key_pattern'):
+            if not re.match(config['key_pattern'], v):
+                raise ValueError(
+                    f"Invalid API key format for {config.get('name', provider)}")
+
+        return v.strip()
 
 
 class SummaryResponse(BaseModel):
     summary: str
+    original_length: int
+    summary_length: int
+    provider: LLMProvider
+
+
+class ExampleResponse(BaseModel):
+    text: str
+    source: str
+    description: str
+
+
+class ErrorResponse(BaseModel):
+    detail: str
+    error_type: str
+    status_code: int
+
+
+class TextAnalysis(BaseModel):
+    word_count: int
+    sentence_count: int
+    paragraph_count: int
+    reading_time_minutes: float
+    complexity_score: float
+    domain: str
+    language: str
+
+
+class OptimizationStrategy(str, Enum):
+    CACHE_HIT = "cache_hit"
+    COMPRESS = "compress"
+    CHUNK = "chunk"
+    TEMPLATE = "template"
+    SHALLOW_TRAIN = "shallow_train"
+
+
+class OptimizationResult(BaseModel):
+    strategy: OptimizationStrategy
+    original_tokens: int
+    optimized_tokens: int
+    estimated_cost: float
+    confidence: float
+    explanation: str
+
+
+class Analytics(BaseModel):
+    total_summaries: int
+    cache_hits: int
+    cache_misses: int
+    average_processing_time: float
+    total_cost_saved: float
+    strategies_used: Dict[str, int]
+    domains_detected: List[str]
+
+
+class CacheStats(BaseModel):
+    total_entries: int
+    hit_rate: float
+    miss_rate: float
+    memory_usage_mb: float
+
+
+class EnhancedSummaryRequest(BaseModel):
+    text: str
+    max_length: int = Field(default=200, ge=50, le=1000)
+    api_key: Optional[str] = None
+    provider: LLMProvider = LLMProvider.OPENAI
+    enable_optimization: bool = True
+    context_strategy: str = "auto"
+
+
+class EnhancedSummaryResponse(BaseModel):
+    summary: str
+    original_length: int
+    summary_length: int
+    provider: LLMProvider
+    optimization_used: OptimizationResult
+    analysis: TextAnalysis
+    processing_time: float
