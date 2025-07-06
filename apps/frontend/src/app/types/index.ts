@@ -150,6 +150,44 @@ export interface AppConfig {
   cacheSize: number;
 }
 
+export interface TextAnalysis {
+  analysis: {
+    text_length: number;
+    estimated_tokens: number;
+    complexity_score: number;
+    detected_domain: string;
+  };
+  optimization: {
+    recommended_strategy: string;
+    estimated_cost: number;
+    expected_tokens: number;
+    confidence_score: number;
+  };
+  similar_texts_found: number;
+  recommendations: {
+    use_cache: boolean;
+    cost_effective: boolean;
+    complexity_appropriate: boolean;
+  };
+}
+
+export interface Toast {
+  id: string;
+  message: string;
+  type: 'success' | 'error' | 'info' | 'warning';
+  duration?: number;
+}
+
+export interface ToastContextType {
+  toasts: Toast[];
+  showToast: (message: string, type: Toast['type'], duration?: number) => void;
+  removeToast: (id: string) => void;
+  showSuccess: (message: string, duration?: number) => void;
+  showError: (message: string, duration?: number) => void;
+  showInfo: (message: string, duration?: number) => void;
+  showWarning: (message: string, duration?: number) => void;
+}
+
 export type ApiKeyValidationStatus = 'idle' | 'valid' | 'invalid' | 'error';
 
 export interface ApiKeyStorage {

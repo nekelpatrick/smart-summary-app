@@ -87,6 +87,13 @@ class ProvidersResponse(BaseModel):
     total: int
 
 
+class TextRequest(BaseModel):
+    text: str
+    max_length: int = Field(default=200, ge=50, le=1000)
+    api_key: Optional[str] = None
+    provider: LLMProvider = LLMProvider.OPENAI
+
+
 class ApiKeyValidationRequest(BaseModel):
     api_key: str
     provider: LLMProvider = LLMProvider.OPENAI
@@ -123,7 +130,7 @@ class SummaryRequest(BaseModel):
     @field_validator('api_key')
     @classmethod
     def validate_api_key_format(cls, v: Optional[str], info: ValidationInfo) -> Optional[str]:
-        if not v:
+        if not v or not v.strip():
             return None
 
         provider = info.data.get('provider', LLMProvider.OPENAI)
@@ -154,66 +161,3 @@ class ErrorResponse(BaseModel):
     detail: str
     error_type: str
     status_code: int
-
-
-class TextAnalysis(BaseModel):
-    word_count: int
-    sentence_count: int
-    paragraph_count: int
-    reading_time_minutes: float
-    complexity_score: float
-    domain: str
-    language: str
-
-
-class OptimizationStrategy(str, Enum):
-    CACHE_HIT = "cache_hit"
-    COMPRESS = "compress"
-    CHUNK = "chunk"
-    TEMPLATE = "template"
-    SHALLOW_TRAIN = "shallow_train"
-
-
-class OptimizationResult(BaseModel):
-    strategy: OptimizationStrategy
-    original_tokens: int
-    optimized_tokens: int
-    estimated_cost: float
-    confidence: float
-    explanation: str
-
-
-class Analytics(BaseModel):
-    total_summaries: int
-    cache_hits: int
-    cache_misses: int
-    average_processing_time: float
-    total_cost_saved: float
-    strategies_used: Dict[str, int]
-    domains_detected: List[str]
-
-
-class CacheStats(BaseModel):
-    total_entries: int
-    hit_rate: float
-    miss_rate: float
-    memory_usage_mb: float
-
-
-class EnhancedSummaryRequest(BaseModel):
-    text: str
-    max_length: int = Field(default=200, ge=50, le=1000)
-    api_key: Optional[str] = None
-    provider: LLMProvider = LLMProvider.OPENAI
-    enable_optimization: bool = True
-    context_strategy: str = "auto"
-
-
-class EnhancedSummaryResponse(BaseModel):
-    summary: str
-    original_length: int
-    summary_length: int
-    provider: LLMProvider
-    optimization_used: OptimizationResult
-    analysis: TextAnalysis
-    processing_time: float

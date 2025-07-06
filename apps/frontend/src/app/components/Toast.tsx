@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 
 export interface ToastProps {
   message: string;
@@ -22,6 +22,11 @@ export function Toast({
     return () => clearTimeout(timer);
   }, []);
 
+  const handleClose = useCallback((): void => {
+    setIsLeaving(true);
+    setTimeout(onClose, 300); // Wait for exit animation
+  }, [onClose, setIsLeaving]);
+
   useEffect(() => {
     if (duration > 0) {
       const timer = setTimeout(() => {
@@ -29,12 +34,7 @@ export function Toast({
       }, duration);
       return () => clearTimeout(timer);
     }
-  }, [duration]);
-
-  const handleClose = (): void => {
-    setIsLeaving(true);
-    setTimeout(onClose, 300); // Wait for exit animation
-  };
+  }, [duration, handleClose]);
 
   const getToastStyles = () => {
     const baseStyles =

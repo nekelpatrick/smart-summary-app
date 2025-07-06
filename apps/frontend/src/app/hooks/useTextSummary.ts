@@ -197,7 +197,7 @@ export function useTextSummary(): UseTextSummaryReturn {
       const request: SummaryRequest = { 
         text: content, 
         max_length: config.defaultMaxLength,
-        api_key: apiKey || undefined,
+        api_key: apiKey?.trim() || undefined,
         provider: selectedProvider
       };
 

@@ -14,8 +14,7 @@ import {
   isApiKeyValidationResponse,
   isProvidersListResponse,
   isExampleResponse,
-  ApiValidationError,
-  NetworkError
+  ApiValidationError
 } from "../types";
 
 class ApiService {

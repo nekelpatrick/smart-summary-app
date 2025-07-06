@@ -13,7 +13,6 @@ from .models import (
     SummaryResponse,
     ApiKeyValidationRequest,
     ApiKeyValidationResponse,
-    ProvidersListResponse,
     ProviderInfo,
     PROVIDER_CONFIG,
     LLMProvider,
@@ -24,8 +23,6 @@ from .models import (
     ProviderStatus,
 )
 from .services.llm_service import LLMService
-# TODO: Re-enable when LangGraph dependencies are installed
-# from .services.langgraph_service import langgraph_service
 
 load_dotenv()
 
@@ -49,10 +46,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize both services
-llm = LLMService()  # Legacy service for backward compatibility
-# TODO: Re-enable when LangGraph dependencies are installed
-# langgraph_llm = langgraph_service  # New LangGraph service
+# Initialize LLM service
+llm = LLMService()
 
 
 class HealthResponse(BaseModel):
@@ -185,65 +180,6 @@ async def summarize_text_stream(request: SummaryRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# New enhanced endpoints using LangGraph - TODO: Re-enable when dependencies are installed
-
-
-@app.post("/v2/summarize")
-async def enhanced_summarize(
-    request: TextRequest,
-    cost_budget: Optional[float] = Query(
-        0.01, description="Maximum cost budget for summarization"),
-    preferences: Optional[Dict[str, Any]] = None
-):
-    """Enhanced summarization with cost optimization and context analysis"""
-    return HTTPException(
-        status_code=503,
-        detail="Enhanced features temporarily unavailable - LangGraph dependencies being installed"
-    )
-
-
-@app.post("/v2/summarize/stream")
-async def enhanced_summarize_stream(
-    request: TextRequest,
-    cost_budget: Optional[float] = Query(
-        0.01, description="Maximum cost budget for summarization"),
-    preferences: Optional[Dict[str, Any]] = None
-):
-    """Enhanced streaming with cost optimization and context analysis"""
-    return HTTPException(
-        status_code=503,
-        detail="Enhanced streaming temporarily unavailable - LangGraph dependencies being installed"
-    )
-
-
-@app.get("/v2/analytics")
-async def get_analytics():
-    """Get analytics about optimization strategies and cost savings"""
-    return HTTPException(
-        status_code=503,
-        detail="Analytics temporarily unavailable - LangGraph dependencies being installed"
-    )
-
-
-@app.post("/v2/analyze")
-async def analyze_text(
-    text: str,
-    api_key: Optional[str] = None
-):
-    """Analyze text complexity and provide optimization recommendations"""
-    return HTTPException(
-        status_code=503,
-        detail="Text analysis temporarily unavailable - LangGraph dependencies being installed"
-    )
-
-
-@app.delete("/v2/cache")
-async def clear_cache():
-    """Clear the optimization cache"""
-    return HTTPException(
-        status_code=503,
-        detail="Cache management temporarily unavailable - LangGraph dependencies being installed"
-    )
 
 if __name__ == "__main__":
     import uvicorn
