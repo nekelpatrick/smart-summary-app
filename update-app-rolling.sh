@@ -28,6 +28,27 @@ cleanup() {
     docker system prune -f > /dev/null 2>&1 || true
 }
 
+stop_port_processes() {
+    local port=$1
+    local processes=$(lsof -ti:$port 2>/dev/null || true)
+    
+    if [ -n "$processes" ]; then
+        warn "Found processes using port $port: $processes"
+        log "Stopping processes on port $port..."
+        echo "$processes" | xargs kill -9 2>/dev/null || true
+        sleep 2
+        
+        # Verify port is free
+        local remaining=$(lsof -ti:$port 2>/dev/null || true)
+        if [ -n "$remaining" ]; then
+            error "Failed to free port $port. Remaining processes: $remaining"
+            return 1
+        else
+            log "Port $port is now free ✓"
+        fi
+    fi
+}
+
 # Check if we're in the right directory
 if [ ! -f "docker-compose.yml" ]; then
     error "docker-compose.yml not found. Please run this script from the project root directory."
@@ -53,8 +74,13 @@ fi
 
 log "Starting rolling update..."
 
-# Clean up any orphaned containers
-log "Cleaning up orphaned containers..."
+# Stop any development servers that might be using our ports
+log "Checking for port conflicts..."
+stop_port_processes 3000
+stop_port_processes 8000
+
+# Clean up any orphaned containers and stop existing ones
+log "Cleaning up existing containers..."
 docker-compose down --remove-orphans > /dev/null 2>&1 || true
 
 # Build new images
@@ -86,13 +112,8 @@ fi
 
 log "Backend is healthy ✓"
 
-# Stop old frontend container if running
-log "Stopping old frontend container..."
-docker-compose stop frontend > /dev/null 2>&1 || true
-docker-compose rm -f frontend > /dev/null 2>&1 || true
-
-# Start new frontend
-log "Starting new frontend service..."
+# Start frontend
+log "Starting frontend service..."
 docker-compose up -d frontend
 
 # Wait for frontend to be healthy
@@ -122,4 +143,7 @@ cleanup
 log "Rolling update completed successfully! ✓"
 log "Application is now running with the latest changes."
 log "Frontend: http://localhost:3000"
-log "Backend: http://localhost:8000" 
+log "Backend: http://localhost:8000"
+log ""
+log "To stop the application, run: docker-compose down"
+log "To view logs, run: docker-compose logs -f" 
