@@ -127,9 +127,9 @@ This will enable rapid iteration while maintaining the reliability of the curren
 
 - **Framework**: FastAPI for the backend API
 - **Language**: Python 3.12
-- **AI Engine**: LangGraph for complex workflow orchestration
+- **AI Engine**: LangGraph for smarter processing
 - **LLM Integration**: OpenAI API with streaming support
-- **Caching**: In-memory cache with semantic similarity search
+- **Caching**: Smart cache that finds similar text
 - **Testing**: Pytest with async support
 
 ### Infrastructure

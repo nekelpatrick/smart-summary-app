@@ -704,7 +704,7 @@ describe("ApiKeyInput Component", () => {
 
     it("displays validation icon for error status", () => {
       render(<ApiKeyInput {...defaultProps} validationStatus="error" />);
-      expect(screen.getByText("!")).toBeInTheDocument();
+      expect(screen.getByText("⚠️")).toBeInTheDocument();
       expect(screen.getByText("Validation failed")).toBeInTheDocument();
     });
 
@@ -760,7 +760,7 @@ describe("ApiKeyInput Component", () => {
   describe("Clear Functionality", () => {
     it("shows clear button when API key is provided for enabled provider", () => {
       render(<ApiKeyInput {...defaultProps} apiKey="sk-test-key" />);
-      expect(screen.getByText("✕")).toBeInTheDocument();
+      expect(screen.getByText("Clear")).toBeInTheDocument();
     });
 
     it("does not show clear button for disabled providers", () => {
@@ -777,7 +777,7 @@ describe("ApiKeyInput Component", () => {
       const user = userEvent.setup();
       render(<ApiKeyInput {...defaultProps} apiKey="sk-test-key" />);
 
-      const clearButton = screen.getByText("✕");
+      const clearButton = screen.getByText("Clear");
       await user.click(clearButton);
 
       expect(mockOnApiKeyChange).toHaveBeenCalledWith("");
@@ -789,7 +789,7 @@ describe("ApiKeyInput Component", () => {
         <ApiKeyInput {...defaultProps} apiKey="sk-test-key" validating={true} />
       );
 
-      const clearButton = screen.getByText("✕");
+      const clearButton = screen.getByText("Clear");
       expect(clearButton).toBeDisabled();
     });
   });
@@ -799,15 +799,10 @@ describe("ApiKeyInput Component", () => {
       render(<ApiKeyInput {...defaultProps} />);
 
       expect(
-        screen.getByText(
-          "• Your API key is stored locally and never saved on our servers"
-        )
+        screen.getByText("💾 Keys stay on your device")
       ).toBeInTheDocument();
-      expect(screen.getByText(/• Get your API key from/)).toBeInTheDocument();
       expect(
-        screen.getByText(
-          "• Leave empty to use our default API key (rate limited)"
-        )
+        screen.getByText(/🔑 Need a key\? Get one from/)
       ).toBeInTheDocument();
     });
 
@@ -818,18 +813,16 @@ describe("ApiKeyInput Component", () => {
       };
       render(<ApiKeyInput {...disabledProps} />);
 
+      expect(screen.getByText("⚠️ Anthropic coming soon")).toBeInTheDocument();
       expect(
-        screen.getByText("• Anthropic support is not yet available")
-      ).toBeInTheDocument();
-      expect(
-        screen.getByText("• Only OpenAI is currently supported")
+        screen.getByText("✅ Only OpenAI works right now")
       ).toBeInTheDocument();
     });
 
     it("renders correct platform links for different providers", () => {
       render(<ApiKeyInput {...defaultProps} />);
 
-      const link = screen.getByText("OpenAI Platform");
+      const link = screen.getByText("OpenAI");
       expect(link).toHaveAttribute(
         "href",
         "https://platform.openai.com/api-keys"
@@ -898,7 +891,7 @@ describe("ApiKeyInput Component", () => {
       };
       render(<ApiKeyInput {...emptyProps} />);
 
-      expect(screen.getByText("LLM Provider")).toBeInTheDocument();
+      expect(screen.getByText("Provider")).toBeInTheDocument();
       // Component should still render without crashing
     });
 
@@ -928,18 +921,16 @@ describe("ApiKeyInput Component", () => {
       };
       render(<ApiKeyInput {...disabledProps} />);
 
+      expect(screen.getByText("⚠️ Anthropic coming soon")).toBeInTheDocument();
       expect(
-        screen.getByText("• Anthropic support is not yet available")
-      ).toBeInTheDocument();
-      expect(
-        screen.getByText("• Only OpenAI is currently supported")
+        screen.getByText("✅ Only OpenAI works right now")
       ).toBeInTheDocument();
     });
 
     it("updates when selectedProvider changes", () => {
       const { rerender } = render(<ApiKeyInput {...defaultProps} />);
 
-      expect(screen.getByText("Available")).toBeInTheDocument();
+      expect(screen.getByText("✅ Available")).toBeInTheDocument();
 
       rerender(
         <ApiKeyInput
@@ -974,7 +965,7 @@ describe("ApiKeyInput Component", () => {
       render(<ApiKeyInput {...invalidProps} />);
 
       expect(
-        screen.queryByText("• Get your API key from")
+        screen.queryByText(/🔑 Need a key\? Get one from/)
       ).not.toBeInTheDocument();
     });
   });
