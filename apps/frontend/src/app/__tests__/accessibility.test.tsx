@@ -102,14 +102,12 @@ describe("Accessibility Tests", () => {
     it("maintains focus after dynamic content changes", async () => {
       const user = userEvent.setup();
       const TestComponent = () => {
-        const [content, setContent] = React.useState("");
         const [result, setResult] = React.useState("");
 
         return (
           <div>
             <MobileTextInput
-              onSubmit={(text) => {
-                setContent(text);
+              onSubmit={() => {
                 setResult("Generated summary");
               }}
               loading={false}
@@ -335,10 +333,12 @@ describe("Accessibility Tests", () => {
         removeEventListener: jest.fn(),
       };
 
-      (global as any).SpeechRecognition = jest.fn(() => mockSpeechRecognition);
-      (global as any).webkitSpeechRecognition = jest.fn(
-        () => mockSpeechRecognition
-      );
+      (
+        global as unknown as { SpeechRecognition: jest.Mock }
+      ).SpeechRecognition = jest.fn(() => mockSpeechRecognition);
+      (
+        global as unknown as { webkitSpeechRecognition: jest.Mock }
+      ).webkitSpeechRecognition = jest.fn(() => mockSpeechRecognition);
 
       const mockOnSubmit = jest.fn();
       render(<MobileTextInput onSubmit={mockOnSubmit} loading={false} />);
@@ -474,9 +474,7 @@ describe("Accessibility Tests", () => {
 
     it("supports magnification software", () => {
       const mockOnSubmit = jest.fn();
-      const { container } = render(
-        <MobileTextInput onSubmit={mockOnSubmit} loading={false} />
-      );
+      render(<MobileTextInput onSubmit={mockOnSubmit} loading={false} />);
 
       // Mock high zoom level
       Object.defineProperty(window, "devicePixelRatio", {

@@ -43,7 +43,6 @@ function Home(): React.ReactElement {
 
   const [showApiSettings, setShowApiSettings] = useState(false);
 
-  // Enhanced summarize function with toast notifications
   const handleSummarize = async (content: string) => {
     try {
       await summarize(content);
@@ -55,7 +54,6 @@ function Home(): React.ReactElement {
     }
   };
 
-  // Enhanced copy function with toast feedback
   const handleCopy = async () => {
     try {
       await copyToClipboard();
@@ -65,7 +63,6 @@ function Home(): React.ReactElement {
     }
   };
 
-  // Enhanced try again with feedback
   const handleTryAgain = async () => {
     try {
       await tryAgain();
@@ -75,14 +72,10 @@ function Home(): React.ReactElement {
     }
   };
 
-  // Handle example loading
   const handleLoadExample = async () => {
     try {
       await loadExample();
       showInfo("Example loaded! Processing...");
-      // loadExample sets the text internally, so we need to wait for it to be set
-      // Then we can summarize. Since loadExample() already calls summarize internally,
-      // we don't need to call it again here.
     } catch {
       showError("Failed to load example");
     }
@@ -107,16 +100,13 @@ function Home(): React.ReactElement {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-100">
         <div className="container mx-auto">
           <div className="relative">
-            {/* Header Section */}
             <div className="pt-8 pb-6 px-4 text-center relative">
-              {/* Background decorative elements */}
               <div className="absolute inset-0 overflow-hidden pointer-events-none">
                 <div className="absolute -top-4 -left-4 w-72 h-72 bg-blue-400/10 rounded-full blur-3xl" />
                 <div className="absolute -top-8 -right-8 w-96 h-96 bg-purple-400/10 rounded-full blur-3xl" />
                 <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-indigo-400/5 rounded-full blur-3xl" />
               </div>
 
-              {/* Header Content */}
               <div className="relative z-10">
                 <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent mb-3">
                   Paste to Summary
@@ -126,7 +116,6 @@ function Home(): React.ReactElement {
                   AI-powered intelligence
                 </p>
 
-                {/* Enhanced Features Toggle */}
                 <div className="flex justify-center items-center gap-4 mb-4">
                   <button
                     onClick={() => setShowApiSettings(!showApiSettings)}
@@ -141,7 +130,6 @@ function Home(): React.ReactElement {
                   </button>
                 </div>
 
-                {/* API Settings Panel */}
                 {showApiSettings && (
                   <div className="max-w-2xl mx-auto mb-6 animate-in slide-in-from-top duration-300">
                     <ApiKeyInput
@@ -161,7 +149,6 @@ function Home(): React.ReactElement {
               </div>
             </div>
 
-            {/* Main Content */}
             <div className="px-4 pb-12">
               <div className="max-w-4xl mx-auto space-y-6">
                 <ErrorBoundary>
@@ -202,7 +189,6 @@ function Home(): React.ReactElement {
         </div>
       </div>
 
-      {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </>
   );

@@ -17,14 +17,13 @@ export function Toast({
   const [isLeaving, setIsLeaving] = useState(false);
 
   useEffect(() => {
-    // Trigger entrance animation
     const timer = setTimeout(() => setIsVisible(true), 10);
     return () => clearTimeout(timer);
   }, []);
 
   const handleClose = useCallback((): void => {
     setIsLeaving(true);
-    setTimeout(onClose, 300); // Wait for exit animation
+    setTimeout(onClose, 300);
   }, [onClose, setIsLeaving]);
 
   useEffect(() => {

@@ -1,368 +1,257 @@
 # Paste to Summary
 
-Turn long, boring text into quick summaries. Just paste and wait.
+A simple web app that turns long text into quick summaries using AI. Just paste your content and get the main points back in seconds.
 
-**🌐 Live Demo: [https://pastetosummary.com](https://pastetosummary.com)**
+## **🌐 Live at: [https://pastetosummary.com](https://pastetosummary.com)**
 
-## What it does
+<img src="public/lp.png" alt="landing page screenshot" style="width:70vw;"/>
 
-Got a wall of text? This thing makes it shorter. Paste in articles, emails, whatever - get the main points back in a few seconds.
+## What does it do?
 
-## Architecture
+Ever get stuck reading through endless emails, articles, or documents? This app takes that wall of text and gives you just the important stuff. Copy any text, paste it in, and watch it get summarized in real-time.
 
-The application follows a clean separation between frontend and backend, with server-side streaming for optimal user experience.
+The "paste to" interaction pattern was inspired by [Paste to Markdown](https://euangoddard.github.io/clipboard2markdown/) - a brilliant little tool that converts copied content to markdown format.
 
-```mermaid
-graph TB
-    A[User] --> B[Next.js Frontend]
-    B --> C[FastAPI Backend]
-    C --> D[OpenAI API]
-    C --> E[LangGraph Engine]
-    E --> F[Context Optimizer]
-    E --> G[Cost Manager]
-    E --> H[Smart Cache]
+## How it works
 
-    subgraph "Frontend Features"
-        B1[Paste Detection]
-        B2[Real-time Streaming]
-        B3[Copy to Clipboard]
-        B4[Mobile Optimized]
-    end
+<img src="public/diagram.png" alt="landing page screenshot" style="width:65vw;"/>
 
-    subgraph "Backend Intelligence"
-        C1[Text Analysis]
-        C2[Domain Detection]
-        C3[Strategy Selection]
-        C4[Token Optimization]
-    end
-
-    B --> B1
-    B --> B2
-    B --> B3
-    B --> B4
-
-    C --> C1
-    C --> C2
-    C --> C3
-    C --> C4
-```
-
-### Core Components
-
-**Frontend (Next.js 15 + TypeScript)**
-
-- Clean, responsive interface optimized for mobile
-- Automatic paste detection anywhere on the page
-- Real-time streaming of summary results
-- Local storage for user preferences and API keys
-- Smart caching system for instant re-summarization
-
-**Backend (FastAPI + Python)**
-
-- RESTful API with async/await for high performance
-- Server-side streaming using OpenAI's streaming API
-- Advanced LangGraph workflows for intelligent processing
-- Context optimization and cost reduction strategies
-- Comprehensive error handling and rate limiting
-
-## Current Deployment
-
-The application is currently running on AWS infrastructure with the following setup:
-
-- **Platform**: AWS ECS (Elastic Container Service)
-- **Deployment Method**: AWS CLI with custom task definitions
-- **Domain**: Custom domain configured at `pastetosummary.com`
-- **Reverse Proxy**: Nginx running inside EC2 instances
-- **SSL**: Automatic HTTPS with proper certificate management
-
-The deployment was done manually through AWS CLI, allowing for fine-grained control over the ECS cluster configuration. The current setup handles traffic efficiently and provides good performance for the summarization workloads.
-
-## Planned Infrastructure Improvements
-
-The next phase of development will focus on automating the deployment pipeline:
-
-1. **Infrastructure as Code**: Migrate to CloudFormation templates for reproducible deployments
-2. **CI/CD Pipeline**: Set up GitHub Actions for automated testing and deployment
-3. **ECS Integration**: Wire the automated pipeline directly to the existing ECS cluster
-4. **Environment Management**: Separate staging and production environments
-5. **Monitoring**: Add CloudWatch dashboards and alerting
-
-This will enable rapid iteration while maintaining the reliability of the current production setup.
-
-## Features
-
-### Basic stuff
-
-- **Paste anywhere**: Drop text anywhere on the page or use the text box
-- **Works with OpenAI**: Uses OpenAI's API (more providers coming)
-- **Bring your own key**: Use your own API key if you want
-- **Remembers stuff**: Caches up to 50 summaries so you don't re-process the same text
-- **Try again**: Don't like the summary? Hit try again
-
-### Smart features (experimental)
-
-- **Picks the right approach**: Looks at your text and chooses how to process it
-- **Knows content types**: Handles technical docs differently than news articles
-- **Saves money**: Tries not to waste API calls
-- **Shows confidence**: Tells you how sure it is about the summary
-
-### Works everywhere
-
-- **Mobile friendly**: Built for phones first
-- **Keyboard shortcuts**: Cmd/Ctrl+V to paste, Cmd/Ctrl+Enter to go
-- **Real-time**: Watch it write the summary
-- **Accessible**: Works with screen readers and keyboard navigation
+The app follows a clean architecture where the frontend never talks directly to the LLM - everything goes through our FastAPI backend. This gives us better control over requests, caching, and error handling.
 
 ## Tech Stack
 
-### Frontend
+**Frontend**
 
-- **Framework**: Next.js 15 with App Router
-- **Language**: TypeScript for type safety
-- **Styling**: Tailwind CSS for responsive design
-- **State Management**: React hooks with local storage persistence
-- **Testing**: Jest + React Testing Library
+- Next.js 15 (React framework)
+- TypeScript (because bugs are annoying)
+- Tailwind CSS (for that clean look)
+- Playwright (for testing across browsers)
 
-### Backend
+**Backend**
 
-- **Framework**: FastAPI for the backend API
-- **Language**: Python 3.12
-- **AI Engine**: LangGraph for smarter processing
-- **LLM Integration**: OpenAI API with streaming support
-- **Caching**: Smart cache that finds similar text
-- **Testing**: Pytest with async support
+- FastAPI (Python web framework)
+- Server-side streaming (real-time text as it processes)
+- OpenAI API integration
+- Async request handling
 
-### Infrastructure
+**Infrastructure**
 
-- **Containerization**: Docker with multi-stage builds
-- **Orchestration**: Docker Compose for local development
-- **Cloud**: AWS ECS for production deployment
-- **Reverse Proxy**: Nginx for SSL termination and load balancing
+- AWS ECS (where it lives)
+- Docker containers
+- Nginx reverse proxy
+- Custom domain with SSL
 
 ## Getting Started
 
-### Prerequisites
+### What you'll need
 
-- Node.js 18+ and npm
+- Node.js 18+
 - Python 3.12+
 - OpenAI API key
-- Docker (optional, for containerized development)
+- Docker (optional but recommended)
 
-### Quick Setup
+### Quick setup
 
-1. **Clone the repository**
+1. **Clone and install**
 
    ```bash
    git clone https://github.com/yourusername/smart-summary-app.git
    cd smart-summary-app
-   ```
-
-2. **Set up environment variables**
-
-   ```bash
-   echo "OPENAI_API_KEY=your_openai_api_key_here" > .env
-   ```
-
-3. **Install dependencies and start development servers**
-   ```bash
    npm install
+   ```
+
+2. **Set up your environment**
+
+   ```bash
+   echo "OPENAI_API_KEY=your_key_here" > .env
+   ```
+
+3. **Run everything**
+   ```bash
    npm run dev
    ```
 
-The application will be available at:
+That's it. Frontend runs on `http://localhost:3000`, backend on `http://localhost:8000`.
 
-- Frontend: http://localhost:3000
-- Backend: http://localhost:8000
+### Using Docker instead
 
-### Using Docker
-
-For a containerized setup that mirrors production:
+If you prefer containers (and who doesn't):
 
 ```bash
 docker-compose up --build
 ```
 
+## Current Deployment Status
+
+Right now, the app is running on AWS ECS. I deployed it manually using the AWS CLI because I wanted full control over the configuration. Here's what I set up:
+
+- **AWS ECS cluster** running the containerized app
+- **Custom domain** at `pastetosummary.com`
+- **Nginx reverse proxy** running inside EC2 instances for SSL termination and load balancing
+- **Manual deployment** via AWS CLI with custom task definitions
+
+The setup works great, but it's not exactly CI/CD friendly. Every update requires manual intervention, which gets old fast.
+
+## What's next?
+
+I'm planning to modernize the deployment pipeline:
+
+1. **Infrastructure as Code** - Convert everything to CloudFormation templates so deployments are reproducible
+2. **GitHub Actions** - Set up automated CI/CD pipeline for testing and deployment
+3. **ECS Integration** - Wire the automated pipeline directly into the existing ECS cluster
+4. **Environment Management** - Separate staging and production environments properly
+
+This will let me push code and have it automatically tested, built, and deployed without the manual AWS CLI dance.
+
 ## API Reference
 
-### Core Endpoints
+### Core endpoints
 
-#### `POST /summarize/stream`
+**POST `/summarize/stream`**
+Streams the summary back in real-time as it's being generated.
 
-Streams summarization results in real-time.
-
-**Request:**
-
-```json
-{
-  "text": "Your long text here...",
-  "max_length": 200,
-  "api_key": "optional_user_api_key",
-  "provider": "openai"
-}
+```bash
+curl -X POST "http://localhost:8000/summarize/stream" \
+     -H "Content-Type: application/json" \
+     -d '{"text": "Your long text here...", "max_length": 200}'
 ```
 
-**Response:** Server-sent events stream
+**GET `/providers`**
+Lists available LLM providers and their status.
 
-```
-data: This is a summary
-data: of your text that
-data: streams in real-time.
-data: [DONE]
-```
-
-#### `GET /providers`
-
-Returns available LLM providers and their status.
-
-#### `POST /validate-api-key`
-
+**POST `/validate-api-key`**
 Validates user-provided API keys.
 
-### Advanced Features (v2 API)
-
-#### `POST /v2/analyze`
-
-Analyzes text complexity and provides optimization recommendations.
-
-#### `GET /v2/analytics`
-
-Returns usage analytics and cost optimization metrics.
+**GET `/health`**
+Health check endpoint for monitoring.
 
 ## Project Structure
 
 ```
 smart-summary-app/
 ├── apps/
-│   ├── frontend/           # Next.js application
-│   │   ├── src/
-│   │   │   ├── app/
-│   │   │   │   ├── components/     # React components
-│   │   │   │   ├── hooks/          # Custom React hooks
-│   │   │   │   ├── services/       # API services
-│   │   │   │   └── types/          # TypeScript types
+│   ├── frontend/           # Next.js app
+│   │   ├── src/app/
+│   │   │   ├── components/ # React components
+│   │   │   ├── hooks/      # Custom hooks
+│   │   │   ├── services/   # API calls
+│   │   │   └── types/      # TypeScript definitions
+│   │   ├── e2e/           # Playwright tests
 │   │   └── package.json
-│   └── backend/            # FastAPI application
+│   └── backend/           # FastAPI app
 │       ├── app/
-│       │   ├── services/           # Business logic
-│       │   ├── models.py           # Pydantic models
-│       │   └── main.py             # FastAPI app
+│       │   ├── services/  # Business logic
+│       │   ├── models.py  # Data models
+│       │   └── main.py    # FastAPI setup
 │       └── requirements.txt
-├── docker-compose.yml      # Development environment
-├── deploy.sh              # Production deployment script
-└── README.md              # This file
+├── docker-compose.yml     # Local development
+└── README.md             # You're reading it
 ```
 
-## Development Workflow
+## Architecture Decisions
 
-### Running Tests
+**Why FastAPI?** - It's fast, has great async support, and the automatic API docs are incredibly helpful during development.
 
-**Frontend:**
+**Why server-side streaming?** - Users see results immediately instead of waiting for the entire summary. Much better experience.
+
+**Why Next.js?** - React with batteries included. The App Router makes routing simple, and the built-in optimizations are solid.
+
+**Why separate frontend/backend?** - Clear separation of concerns. The frontend focuses on UI/UX, the backend handles LLM integration and business logic.
+
+## Testing
+
+The app has comprehensive testing across multiple levels:
+
+**Unit Tests (Jest)**
 
 ```bash
-cd apps/frontend
-npm test
+npm run test
 ```
 
-**Backend:**
+**End-to-End Tests (Playwright)**
 
 ```bash
-cd apps/backend
-python -m pytest
+npm run test:e2e
 ```
 
-### Code Quality
+**Integration Tests**
 
-The project uses ESLint for JavaScript/TypeScript and follows PEP 8 for Python. Pre-commit hooks ensure code quality before commits.
+```bash
+npm run test:integration
+```
 
-### Adding New Features
+The Playwright tests run across Chrome, Firefox, Safari, and mobile browsers to catch cross-platform issues.
 
-1. Create feature branch from `main`
-2. Implement changes with tests
-3. Ensure all tests pass
-4. Submit pull request with description
+## Security Considerations
+
+- **API keys** are stored only in the browser, never sent to our servers
+- **HTTPS everywhere** - all communication is encrypted
+- **Input validation** prevents injection attacks
+- **Rate limiting** protects against abuse
+- **CORS** properly configured for the frontend domain
 
 ## Scaling Considerations
 
-### Performance Optimizations
+**Current setup** handles moderate traffic well, but here's how it could scale:
 
-- **Caching Strategy**: Intelligent caching reduces API calls by up to 80%
-- **Connection Pooling**: Efficient database and API connection management
-- **CDN Integration**: Static assets served via CloudFront
-- **Lazy Loading**: Components and routes loaded on demand
+**Performance**
 
-### Horizontal Scaling
+- Add Redis for caching frequent summaries
+- Implement connection pooling for the database
+- Use CDN for static assets
+- Add horizontal scaling for backend services
 
-- **Stateless Design**: Backend services can be replicated without shared state
-- **Load Balancing**: Nginx distributes traffic across multiple containers
-- **Database Scaling**: Ready for managed database solutions (RDS, MongoDB Atlas)
-- **Queue System**: Background processing for heavy workloads
+**Monitoring**
 
-### Monitoring and Observability
+- CloudWatch for AWS metrics
+- Error tracking for debugging
+- Performance monitoring for bottlenecks
+- User analytics for product improvements
 
-- **Health Checks**: Built-in health endpoints for container orchestration
-- **Error Tracking**: Structured logging for debugging
-- **Performance Metrics**: API response times and throughput monitoring
-- **User Analytics**: Privacy-respecting usage statistics
+**Infrastructure**
 
-## Security Measures
+- Auto-scaling groups for handling traffic spikes
+- Multiple availability zones for redundancy
+- Load balancers for distributing traffic
+- Database clustering for high availability
 
-### Data Protection
+## Future Ideas
 
-- **API Key Security**: User keys stored only in browser, never on servers
-- **HTTPS Everywhere**: All communication encrypted in transit
-- **Input Validation**: Comprehensive validation prevents injection attacks
-- **Rate Limiting**: Protects against abuse and DoS attacks
+Here are some features that could make this even better:
 
-### Infrastructure Security
+**Short term**
 
-- **Container Security**: Regular security updates and minimal attack surface
-- **Network Isolation**: Private subnets and security groups
-- **Access Control**: IAM roles with least-privilege access
-- **Secrets Management**: Environment variables and AWS Secrets Manager
+- Support for more LLM providers (Anthropic, Mistral, etc.)
+- Custom summary lengths and styles
+- Export summaries as PDF or markdown
+- Browser extension for one-click summarization
 
-## Future Roadmap
+**Long term**
 
-### Short Term (Next 3 months)
-
-- **Multi-provider Support**: Add Anthropic Claude and Google Gemini
-- **User Accounts**: Optional registration for history and preferences
-- **Advanced Summarization**: Custom length, tone, and style options
-- **Export Features**: PDF, Word, and Markdown export options
-
-### Medium Term (6 months)
-
-- **Collaborative Features**: Share summaries and collaborate on documents
-- **API for Developers**: Public API for third-party integrations
-- **Plugin Ecosystem**: Browser extensions and integrations
-- **Analytics Dashboard**: Detailed usage and performance insights
-
-### Long Term (1 year+)
-
-- **Multi-language Support**: Summarization in different languages
-- **Document Upload**: Support for PDF, Word, and other file formats
-- **Custom Models**: Fine-tuned models for specific domains
-- **Enterprise Features**: Team management and advanced security
+- User accounts for saving summary history
+- Collaborative features for team summarization
+- API for third-party integrations
+- Custom fine-tuned models for specific domains
 
 ## Contributing
 
-We welcome contributions! Please see our contributing guidelines for details on how to:
+Found a bug? Have an idea? Contributions are welcome!
 
-- Report bugs
-- Suggest features
-- Submit pull requests
-- Improve documentation
+1. Fork the repo
+2. Create a feature branch: `git checkout -b my-feature`
+3. Make your changes and add tests
+4. Push and create a pull request
+
+Make sure tests pass before submitting:
+
+```bash
+npm run test:ci
+```
 
 ## License
 
-This project is licensed under the MIT License. See the LICENSE file for details.
-
-## Support
-
-- **Documentation**: Check this README and inline code comments
-- **Issues**: Report bugs or request features via GitHub Issues
-- **Discussions**: Join community discussions in GitHub Discussions
-- **Email**: Contact the maintainer directly for urgent issues
+MIT License - feel free to use this however you want.
 
 ---
 
-Built with ❤️ by [nekeldev](https://patrick-nekel.vercel.app) | [LinkedIn](https://www.linkedin.com/in/nekelpatrick/) | [Buy me a coffee](https://www.buymeacoffee.com/nekeldev)
+Built by [nekeldev](https://patrick-nekel.vercel.app) | [LinkedIn](https://www.linkedin.com/in/nekelpatrick/) | [Buy me a coffee](https://www.buymeacoffee.com/nekeldev)

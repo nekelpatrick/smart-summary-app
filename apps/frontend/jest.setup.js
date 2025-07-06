@@ -1,6 +1,5 @@
 import '@testing-library/jest-dom'
-// Temporarily disabled until jest-axe is properly installed
-// import 'jest-axe/extend-expect'
+import 'jest-axe/extend-expect'
 
 // Mock Next.js router
 jest.mock('next/router', () => ({
