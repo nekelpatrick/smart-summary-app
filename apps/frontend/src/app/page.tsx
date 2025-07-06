@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import {
   Instructions,
   TextDisplay,
@@ -42,15 +42,39 @@ function Home(): React.ReactElement {
   const { toasts, removeToast, showSuccess, showError, showInfo } = useToast();
 
   const [showApiSettings, setShowApiSettings] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const resultDisplayRef = useRef<HTMLDivElement>(null);
+
+  const scrollToResults = () => {
+    if (resultDisplayRef.current) {
+      const offsetTop = resultDisplayRef.current.offsetTop - 100;
+      window.scrollTo({
+        top: offsetTop,
+        behavior: "smooth",
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (loading && !isProcessing) {
+      setIsProcessing(true);
+      setTimeout(scrollToResults, 150);
+    } else if (!loading && isProcessing) {
+      setIsProcessing(false);
+    }
+  }, [loading, isProcessing]);
 
   const handleSummarize = async (content: string) => {
     try {
+      setIsProcessing(true);
+      setTimeout(scrollToResults, 100);
       await summarize(content);
       if (summary) {
         showSuccess("Summary generated successfully!");
       }
     } catch {
       showError("Failed to generate summary. Please try again.");
+      setIsProcessing(false);
     }
   };
 
@@ -65,19 +89,25 @@ function Home(): React.ReactElement {
 
   const handleTryAgain = async () => {
     try {
+      setIsProcessing(true);
+      setTimeout(scrollToResults, 100);
       await tryAgain();
       showInfo("Generating a new summary...");
     } catch {
       showError("Failed to generate new summary");
+      setIsProcessing(false);
     }
   };
 
   const handleLoadExample = async () => {
     try {
+      setIsProcessing(true);
+      setTimeout(scrollToResults, 100);
       await loadExample();
       showInfo("Example loaded! Processing...");
     } catch {
       showError("Failed to load example");
+      setIsProcessing(false);
     }
   };
 
@@ -115,6 +145,17 @@ function Home(): React.ReactElement {
                   Transform lengthy text into concise, meaningful summaries with
                   AI-powered intelligence
                 </p>
+
+                {(loading || isProcessing) && (
+                  <div className="mb-4 animate-in fade-in slide-in-from-top duration-300">
+                    <div className="inline-flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2">
+                      <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                      <span className="text-blue-700 font-medium">
+                        Processing your text...
+                      </span>
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex justify-center items-center gap-4 mb-4">
                   <button
@@ -173,15 +214,17 @@ function Home(): React.ReactElement {
                     />
                   </div>
 
-                  <ResultDisplay
-                    summary={summary}
-                    loading={loading}
-                    error={error}
-                    copied={copied}
-                    isCached={isCached}
-                    onCopy={handleCopy}
-                    onTryAgain={handleTryAgain}
-                  />
+                  <div ref={resultDisplayRef}>
+                    <ResultDisplay
+                      summary={summary}
+                      loading={loading}
+                      error={error}
+                      copied={copied}
+                      isCached={isCached}
+                      onCopy={handleCopy}
+                      onTryAgain={handleTryAgain}
+                    />
+                  </div>
                 </ErrorBoundary>
               </div>
             </div>

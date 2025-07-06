@@ -10,6 +10,7 @@ export function MobileTextInput({
   const [charCount, setCharCount] = useState(0);
   const [isFocused, setIsFocused] = useState(false);
   const [showTip, setShowTip] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const MIN_CHARS = 10;
   const MAX_CHARS = 50000;
@@ -34,12 +35,21 @@ export function MobileTextInput({
     }
   }, [isFocused, text.length]);
 
+  useEffect(() => {
+    if (loading) {
+      setIsSubmitting(true);
+    } else {
+      setIsSubmitting(false);
+    }
+  }, [loading]);
+
   const handleSubmit = useCallback((): void => {
-    if (text.trim() && text.length >= MIN_CHARS) {
+    if (text.trim() && text.length >= MIN_CHARS && !loading) {
+      setIsSubmitting(true);
       onSubmit(text.trim());
       setText("");
     }
-  }, [text, onSubmit]);
+  }, [text, onSubmit, loading]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
@@ -73,20 +83,36 @@ export function MobileTextInput({
         <div
           className={`relative rounded-2xl bg-white shadow-lg border-2 transition-all duration-300 ${
             isFocused ? "border-blue-500 shadow-blue-500/25" : "border-gray-200"
-          }`}
+          } ${isSubmitting ? "ring-2 ring-blue-200 ring-opacity-75" : ""}`}
         >
           <div className="p-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="text-2xl">✏️</div>
-              <div>
-                <h3 className="font-semibold text-gray-800">
+              <div className="flex-1">
+                <h3 className="font-semibold text-gray-800 flex items-center gap-2">
                   Paste or type your text
+                  {isSubmitting && (
+                    <span className="text-xs text-blue-600 animate-pulse font-medium">
+                      Processing...
+                    </span>
+                  )}
                 </h3>
                 <p className="text-sm text-gray-600">
                   Articles, emails, documents - anything you want summarized
                 </p>
               </div>
             </div>
+
+            {isSubmitting && (
+              <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-3 animate-in fade-in slide-in-from-top duration-300">
+                <div className="flex items-center gap-3">
+                  <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                  <span className="text-blue-700 text-sm font-medium">
+                    Your text is being processed...
+                  </span>
+                </div>
+              </div>
+            )}
 
             <div className="relative">
               <textarea
@@ -96,7 +122,9 @@ export function MobileTextInput({
                 onFocus={() => setIsFocused(true)}
                 onBlur={() => setIsFocused(false)}
                 placeholder="Paste your text here or start typing..."
-                className="w-full min-h-[120px] max-h-[300px] p-4 border border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none text-gray-900 placeholder-gray-500 transition-all duration-200"
+                className={`w-full min-h-[120px] max-h-[300px] p-4 border border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none text-gray-900 placeholder-gray-500 transition-all duration-200 ${
+                  loading ? "bg-gray-50 cursor-not-allowed" : ""
+                }`}
                 disabled={loading}
                 aria-label="Text input for summarization"
                 aria-describedby="text-stats"
@@ -123,7 +151,7 @@ export function MobileTextInput({
               </div>
 
               <div className="flex items-center gap-3">
-                {text.length > 0 && (
+                {text.length > 0 && !loading && (
                   <button
                     onClick={() => setText("")}
                     className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
@@ -158,7 +186,7 @@ export function MobileTextInput({
             </div>
           </div>
 
-          {showTip && (
+          {showTip && !loading && (
             <div className="absolute -bottom-12 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-3 py-2 rounded-lg animate-in fade-in slide-in-from-top duration-300">
               <div className="flex items-center gap-2">
                 <span>💡</span>

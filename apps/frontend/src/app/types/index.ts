@@ -270,12 +270,6 @@ export class ApiValidationError extends Error {
   }
 }
 
-export class NetworkError extends Error {
-  constructor(message: string, public readonly status?: number) {
-    super(message);
-    this.name = 'NetworkError';
-  }
-}
 
 export function isValidSummaryResponse(data: unknown): data is SummaryResponse {
   return (

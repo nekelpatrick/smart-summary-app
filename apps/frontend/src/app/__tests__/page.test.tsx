@@ -10,7 +10,8 @@ Object.assign(global, {
 
 // Ensure TextDecoder is available in the global scope
 if (typeof global.TextDecoder === "undefined") {
-  global.TextDecoder = TextDecoder as any;
+  (global as unknown as { TextDecoder: typeof TextDecoder }).TextDecoder =
+    TextDecoder;
 }
 
 import React from "react";
@@ -55,8 +56,11 @@ class MockClipboardEvent extends Event {
 }
 
 // Setup global mocks
-(global as any).ClipboardEvent = MockClipboardEvent;
-(global as any).DataTransfer = MockDataTransfer;
+(
+  global as unknown as { ClipboardEvent: typeof MockClipboardEvent }
+).ClipboardEvent = MockClipboardEvent;
+(global as unknown as { DataTransfer: typeof MockDataTransfer }).DataTransfer =
+  MockDataTransfer;
 
 // Mock fetch with proper typing
 const mockFetch = global.fetch as jest.MockedFunction<typeof fetch>;

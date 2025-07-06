@@ -13,6 +13,13 @@ export function ResultDisplay({
 }: ResultDisplayProps) {
   const [progress, setProgress] = useState(0);
   const [wordCount, setWordCount] = useState(0);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    if (loading || summary || error) {
+      setIsVisible(true);
+    }
+  }, [loading, summary, error]);
 
   useEffect(() => {
     if (loading) {
@@ -52,13 +59,17 @@ export function ResultDisplay({
     }
   }, [summary]);
 
+  if (!isVisible) {
+    return null;
+  }
+
   return (
     <div
-      className={`rounded-lg bg-white shadow-lg transition-all duration-300 transform ${
+      className={`rounded-lg bg-white shadow-lg transition-all duration-500 transform ${
         loading || summary || error
-          ? "scale-100 opacity-100"
-          : "scale-95 opacity-0"
-      }`}
+          ? "scale-100 opacity-100 translate-y-0"
+          : "scale-95 opacity-0 translate-y-4"
+      } ${loading ? "ring-2 ring-blue-200 ring-opacity-50" : ""}`}
     >
       <div className="p-4 md:p-6 border-b border-gray-100">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
@@ -66,7 +77,7 @@ export function ResultDisplay({
             <h2 className="text-lg md:text-xl font-semibold text-gray-700 flex items-center gap-2">
               📝 Summary
               {loading && (
-                <span className="text-xs text-gray-500 animate-pulse">
+                <span className="text-xs text-blue-600 animate-pulse font-medium">
                   Generating...
                 </span>
               )}
@@ -128,12 +139,37 @@ export function ResultDisplay({
         </div>
 
         {loading && (
-          <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-blue-400 to-purple-500 rounded-full transition-all duration-300 ease-out relative overflow-hidden"
-              style={{ width: `${progress}%` }}
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-pulse"></div>
+          <div className="space-y-3">
+            <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-blue-400 to-purple-500 rounded-full transition-all duration-300 ease-out relative overflow-hidden"
+                style={{ width: `${progress}%` }}
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-pulse"></div>
+              </div>
+            </div>
+            <div className="flex items-center justify-center gap-2 text-sm text-blue-600">
+              <div className="flex items-center gap-1">
+                <span
+                  className="animate-bounce text-blue-400"
+                  style={{ animationDelay: "0s" }}
+                >
+                  ●
+                </span>
+                <span
+                  className="animate-bounce text-blue-500"
+                  style={{ animationDelay: "0.1s" }}
+                >
+                  ●
+                </span>
+                <span
+                  className="animate-bounce text-blue-600"
+                  style={{ animationDelay: "0.2s" }}
+                >
+                  ●
+                </span>
+              </div>
+              <span className="font-medium">AI is analyzing your text</span>
             </div>
           </div>
         )}
@@ -153,42 +189,22 @@ export function ResultDisplay({
         )}
 
         {loading && (
-          <div className="flex flex-col items-center justify-center py-12 space-y-4">
+          <div className="flex flex-col items-center justify-center py-8 space-y-4">
             <Spinner size={40} className="text-blue-500" />
             <div className="text-center space-y-2">
-              <p className="text-gray-600 font-medium">
+              <p className="text-gray-700 font-medium text-lg">
                 Creating your summary...
               </p>
               <p className="text-sm text-gray-500">
                 Using AI to extract key insights
               </p>
-              <div className="flex items-center justify-center gap-1 text-xs text-gray-400">
-                <span
-                  className="animate-bounce"
-                  style={{ animationDelay: "0s" }}
-                >
-                  ●
-                </span>
-                <span
-                  className="animate-bounce"
-                  style={{ animationDelay: "0.1s" }}
-                >
-                  ●
-                </span>
-                <span
-                  className="animate-bounce"
-                  style={{ animationDelay: "0.2s" }}
-                >
-                  ●
-                </span>
-              </div>
             </div>
           </div>
         )}
 
         {summary && (
           <div
-            className={`rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-4 md:p-6 transition-all duration-300`}
+            className={`rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-4 md:p-6 transition-all duration-500 animate-in fade-in slide-in-from-bottom`}
           >
             <div className="prose prose-sm max-w-none">
               <p className="leading-relaxed text-gray-700 mb-0">{summary}</p>
@@ -198,13 +214,6 @@ export function ResultDisplay({
               <span>Generated {isCached ? "from cache" : "by AI"}</span>
               <span>{new Date().toLocaleTimeString()}</span>
             </div>
-          </div>
-        )}
-
-        {!loading && !summary && !error && (
-          <div className="text-center py-12">
-            <div className="text-4xl mb-2">📝</div>
-            <p>Your summary will appear here</p>
           </div>
         )}
       </div>

@@ -34,7 +34,11 @@ export function Instructions({
 
   return (
     <div className="mb-8">
-      <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-8 shadow-lg border border-gray-200/50">
+      <div
+        className={`bg-white/80 backdrop-blur-sm rounded-3xl p-8 shadow-lg border border-gray-200/50 transition-all duration-300 ${
+          loading ? "ring-2 ring-green-200 ring-opacity-50" : ""
+        }`}
+      >
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold text-gray-800 mb-3">
             How it works
@@ -42,15 +46,36 @@ export function Instructions({
           <p className="text-gray-600 text-lg">
             Takes about 10 seconds to turn walls of text into something readable
           </p>
+
+          {loading && (
+            <div className="mt-4 animate-in fade-in slide-in-from-top duration-300">
+              <div className="inline-flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-2">
+                <div className="w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+                <span className="text-green-700 font-medium">
+                  Loading example and processing...
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {steps.map((step, index) => (
             <div key={index} className="relative">
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300 h-full">
+              <div
+                className={`bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300 h-full ${
+                  loading && index === 3
+                    ? "ring-2 ring-orange-200 ring-opacity-75"
+                    : ""
+                }`}
+              >
                 <div className="flex flex-col items-center text-center">
                   <div
-                    className={`w-16 h-16 bg-gradient-to-br ${step.color} rounded-full flex items-center justify-center mb-4 shadow-lg`}
+                    className={`w-16 h-16 bg-gradient-to-br ${
+                      step.color
+                    } rounded-full flex items-center justify-center mb-4 shadow-lg ${
+                      loading && index === 3 ? "animate-pulse" : ""
+                    }`}
                   >
                     <span className="text-2xl">{step.icon}</span>
                   </div>
@@ -58,8 +83,17 @@ export function Instructions({
                     <div className="text-sm font-bold text-gray-400 mb-1">
                       STEP {index + 1}
                     </div>
-                    <h3 className="font-semibold text-gray-800 text-sm leading-tight">
+                    <h3
+                      className={`font-semibold text-gray-800 text-sm leading-tight ${
+                        loading && index === 3 ? "text-orange-600" : ""
+                      }`}
+                    >
                       {step.title}
+                      {loading && index === 3 && (
+                        <span className="ml-2 text-xs text-orange-500 animate-pulse">
+                          In progress...
+                        </span>
+                      )}
                     </h3>
                   </div>
                   <p className="text-xs text-gray-600 leading-relaxed">
@@ -70,7 +104,13 @@ export function Instructions({
 
               {/* Connector line for larger screens */}
               {index < steps.length - 1 && (
-                <div className="hidden lg:block absolute top-8 -right-3 w-6 h-0.5 bg-gradient-to-r from-gray-300 to-gray-200"></div>
+                <div
+                  className={`hidden lg:block absolute top-8 -right-3 w-6 h-0.5 transition-all duration-300 ${
+                    loading && index < 3
+                      ? "bg-gradient-to-r from-green-400 to-green-300"
+                      : "bg-gradient-to-r from-gray-300 to-gray-200"
+                  }`}
+                ></div>
               )}
             </div>
           ))}
@@ -80,7 +120,11 @@ export function Instructions({
           <button
             onClick={onExample}
             disabled={loading}
-            className="inline-flex items-center justify-center px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold rounded-2xl hover:from-green-600 hover:to-emerald-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 active:from-green-700 active:to-emerald-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all duration-200 shadow-lg shadow-green-500/25 min-h-[56px]"
+            className={`inline-flex items-center justify-center px-8 py-4 font-semibold rounded-2xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 shadow-lg min-h-[56px] ${
+              loading
+                ? "bg-gradient-to-r from-gray-400 to-gray-500 text-white cursor-not-allowed"
+                : "bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:from-green-600 hover:to-emerald-600 active:from-green-700 active:to-emerald-700 shadow-green-500/25 transform hover:scale-105 active:scale-95"
+            }`}
           >
             {loading ? (
               <>

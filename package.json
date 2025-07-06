@@ -1,7 +1,7 @@
 {
   "name": "smart-summary-app",
   "version": "1.0.0",
-  "description": "A full-stack application that allows users to paste text and receive an LLM-generated summary",
+  "description": "Paste text, get a summary back. Simple as that.",
   "private": true,
   "workspaces": [
     "apps/frontend"

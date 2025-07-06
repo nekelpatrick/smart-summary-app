@@ -79,7 +79,7 @@ async def get_example():
         )
     else:
         return ExampleResponse(
-            text="Your meeting covered several key topics including project timelines, budget allocation, and team responsibilities. The discussion also touched on upcoming milestones and potential challenges that may arise during implementation.",
+            text="Had a team meeting about the new project. We talked about deadlines, who's doing what, and how much budget we have left. Also discussed some stuff coming up and what might go wrong. Need to follow up on a few things next week.",
             source="fallback",
             description="Default example text"
         )
