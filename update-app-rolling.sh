@@ -23,6 +23,11 @@ error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+cleanup() {
+    log "Cleaning up..."
+    docker system prune -f > /dev/null 2>&1 || true
+}
+
 # Check if we're in the right directory
 if [ ! -f "docker-compose.yml" ]; then
     error "docker-compose.yml not found. Please run this script from the project root directory."
@@ -34,76 +39,87 @@ if [ -z "$OPENAI_API_KEY" ]; then
     warn "OPENAI_API_KEY environment variable not set."
     warn "Trying to get from AWS Parameter Store..."
     
+    # Try to get from AWS Parameter Store
     if command -v aws &> /dev/null; then
-        OPENAI_API_KEY=$(aws ssm get-parameter --name "/openai/api_key" --with-decryption --query 'Parameter.Value' --output text --region sa-east-1 2>/dev/null || echo "")
-        
-        if [ -n "$OPENAI_API_KEY" ]; then
-            export OPENAI_API_KEY
-            log "OpenAI API key retrieved from Parameter Store"
-        else
-            error "Could not retrieve OpenAI API key from Parameter Store"
-            exit 1
-        fi
-    else
-        error "AWS CLI not found and OPENAI_API_KEY not set"
+        OPENAI_API_KEY=$(aws ssm get-parameter --name "/app/openai-api-key" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null) || true
+    fi
+    
+    if [ -z "$OPENAI_API_KEY" ]; then
+        error "OPENAI_API_KEY not found in environment or AWS Parameter Store."
+        error "Please set the OPENAI_API_KEY environment variable or store it in AWS Parameter Store."
         exit 1
     fi
 fi
 
-log "Starting rolling update deployment..."
+log "Starting rolling update..."
 
-# Step 1: Build new images first
+# Clean up any orphaned containers
+log "Cleaning up orphaned containers..."
+docker-compose down --remove-orphans > /dev/null 2>&1 || true
+
+# Build new images
 log "Building new images..."
 docker-compose build --no-cache
 
-# Step 2: Update backend first (since frontend depends on it)
-log "Updating backend service..."
-docker-compose up -d --no-deps backend
+# Start backend first
+log "Starting backend service..."
+docker-compose up -d backend
 
 # Wait for backend to be healthy
 log "Waiting for backend to be healthy..."
-for i in {1..30}; do
-    if curl -f http://localhost:8000/health > /dev/null 2>&1; then
-        log "Backend is healthy ✓"
+BACKEND_HEALTHY=false
+for i in {1..60}; do
+    log "Backend health check attempt $i/60..."
+    if docker-compose exec -T backend curl -f http://localhost:8000/health > /dev/null 2>&1; then
+        BACKEND_HEALTHY=true
         break
-    else
-        log "Backend health check attempt $i/30..."
-        sleep 2
     fi
-    if [ $i -eq 30 ]; then
-        error "Backend failed to become healthy"
-        exit 1
-    fi
+    sleep 2
 done
 
-# Step 3: Update frontend
-log "Updating frontend service..."
-docker-compose up -d --no-deps frontend
+if [ "$BACKEND_HEALTHY" = false ]; then
+    error "Backend failed to become healthy within 2 minutes"
+    error "Rolling back..."
+    docker-compose down
+    exit 1
+fi
+
+log "Backend is healthy ✓"
+
+# Stop old frontend container if running
+log "Stopping old frontend container..."
+docker-compose stop frontend > /dev/null 2>&1 || true
+docker-compose rm -f frontend > /dev/null 2>&1 || true
+
+# Start new frontend
+log "Starting new frontend service..."
+docker-compose up -d frontend
 
 # Wait for frontend to be healthy
 log "Waiting for frontend to be healthy..."
+FRONTEND_HEALTHY=false
 for i in {1..30}; do
+    log "Frontend health check attempt $i/30..."
     if curl -f http://localhost:3000 > /dev/null 2>&1; then
-        log "Frontend is healthy ✓"
+        FRONTEND_HEALTHY=true
         break
-    else
-        log "Frontend health check attempt $i/30..."
-        sleep 2
     fi
-    if [ $i -eq 30 ]; then
-        error "Frontend failed to become healthy"
-        exit 1
-    fi
+    sleep 2
 done
 
-# Step 4: Clean up unused images
-log "Cleaning up unused images..."
-docker image prune -f 2>/dev/null || true
+if [ "$FRONTEND_HEALTHY" = false ]; then
+    error "Frontend failed to become healthy within 1 minute"
+    error "Rolling back..."
+    docker-compose down
+    exit 1
+fi
+
+log "Frontend is healthy ✓"
+
+# Clean up old images
+cleanup
 
 log "Rolling update completed successfully! ✓"
+log "Application is now running with the latest changes."
 log "Frontend: http://localhost:3000"
-log "Backend: http://localhost:8000"
-
-# Show final running containers
-log "Running containers:"
-docker-compose ps 
+log "Backend: http://localhost:8000" 

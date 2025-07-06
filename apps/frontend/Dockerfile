@@ -2,13 +2,19 @@ FROM node:22-alpine AS base
 
 WORKDIR /app
 
+# Configure npm for better network handling
+RUN npm config set registry https://registry.npmjs.org/ && \
+    npm config set fetch-retry-maxtimeout 60000 && \
+    npm config set fetch-retry-mintimeout 10000 && \
+    npm config set fetch-retries 5
+
 FROM base AS deps
 COPY package*.json ./
-RUN npm install --only=production
+RUN npm install --only=production --verbose
 
 FROM base AS builder
 COPY package*.json ./
-RUN npm install
+RUN npm install --verbose
 COPY . .
 RUN npm run build
 

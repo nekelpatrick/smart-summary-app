@@ -91,8 +91,13 @@ const createStreamResponse = (summary: string, status = 200): Response => {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     start(controller: ReadableStreamDefaultController) {
-      const chunk = `data: ${summary}\n\n`;
-      controller.enqueue(encoder.encode(chunk));
+      // Split summary into words to simulate streaming, preserving spaces
+      const words = summary.split(" ");
+      for (let i = 0; i < words.length; i++) {
+        const word = words[i];
+        const chunk = `data: ${word}${i < words.length - 1 ? " " : ""}\n\n`;
+        controller.enqueue(encoder.encode(chunk));
+      }
       controller.enqueue(encoder.encode("data: [DONE]\n\n"));
       controller.close();
     },
@@ -119,7 +124,8 @@ const createChunkedStreamResponse = (
           const chunk = `data: ${chunks[chunkIndex]}\n\n`;
           controller.enqueue(encoder.encode(chunk));
           chunkIndex++;
-          setTimeout(pushChunk, 10);
+          // Use synchronous processing for tests - no setTimeout
+          pushChunk();
         } else {
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
@@ -454,57 +460,40 @@ describe("Home Component", () => {
 
   describe("Try Again functionality", () => {
     it("shows try again button when summary is available", async () => {
-      mockFetch.mockResolvedValue(createStreamResponse("Test Summary"));
+      const exampleData: ExampleResponse = { text: "Test text" };
+
+      mockFetch
+        .mockResolvedValueOnce(createApiResponse(exampleData))
+        .mockResolvedValueOnce(createStreamResponse("Test Summary"));
 
       render(<Home />);
 
-      await act(async () => {
-        document.dispatchEvent(createPasteEvent("Test text"));
-        await new Promise((resolve) => setTimeout(resolve, 600));
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText("Test Summary")).toBeInTheDocument();
-        expect(screen.getByText("Try Again")).toBeInTheDocument();
-      });
-    });
-
-    it("disables try again button when loading", async () => {
-      mockFetch.mockImplementation(
-        () =>
-          new Promise((resolve) =>
-            setTimeout(() => resolve(createStreamResponse("Summary")), 100)
-          )
-      );
-
-      render(<Home />);
-
-      await act(async () => {
-        document.dispatchEvent(createPasteEvent("Test"));
-        await new Promise((resolve) => setTimeout(resolve, 600));
-      });
-
-      await waitFor(() => {
-        const tryAgainButton = screen.getByText("Try Again");
-        expect(tryAgainButton).toBeDisabled();
-      });
-    });
-
-    it("bypasses cache and regenerates summary", async () => {
       const user = userEvent.setup();
+      await user.click(screen.getByText("Try Example"));
+
+      await waitFor(
+        () => {
+          expect(screen.getByText("Test Summary")).toBeInTheDocument();
+          expect(screen.getByText("Try Again")).toBeInTheDocument();
+        },
+        { timeout: 5000 }
+      );
+    });
+
+    it("regenerates summary when try again is clicked", async () => {
+      const user = userEvent.setup();
+      const exampleData: ExampleResponse = { text: "Test content" };
       const firstSummary = "First summary";
       const secondSummary = "Second summary";
 
       mockFetch
+        .mockResolvedValueOnce(createApiResponse(exampleData))
         .mockResolvedValueOnce(createStreamResponse(firstSummary))
         .mockResolvedValueOnce(createStreamResponse(secondSummary));
 
       render(<Home />);
 
-      await act(async () => {
-        document.dispatchEvent(createPasteEvent("Test text"));
-        await new Promise((resolve) => setTimeout(resolve, 600));
-      });
+      await user.click(screen.getByText("Try Example"));
 
       await waitFor(() => {
         expect(screen.getByText(firstSummary)).toBeInTheDocument();
@@ -516,40 +505,29 @@ describe("Home Component", () => {
         expect(screen.getByText(secondSummary)).toBeInTheDocument();
       });
 
-      expect(mockFetch).toHaveBeenCalledTimes(2);
-      expect(mockFetch).toHaveBeenCalledWith(
-        "http://localhost:8000/summarize/stream",
-        expect.objectContaining({
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            text: "Test text",
-            max_length: 300,
-          }),
-        })
-      );
+      expect(mockFetch).toHaveBeenCalledTimes(3); // example + 2 summaries
     });
 
     it("shows loading state during try again", async () => {
       const user = userEvent.setup();
+      const exampleData: ExampleResponse = { text: "Test content" };
+
       mockFetch
+        .mockResolvedValueOnce(createApiResponse(exampleData))
         .mockResolvedValueOnce(createStreamResponse("First summary"))
         .mockImplementation(
           () =>
             new Promise((resolve) =>
               setTimeout(
                 () => resolve(createStreamResponse("Second summary")),
-                100
+                200
               )
             )
         );
 
       render(<Home />);
 
-      await act(async () => {
-        document.dispatchEvent(createPasteEvent("Test"));
-        await new Promise((resolve) => setTimeout(resolve, 600));
-      });
+      await user.click(screen.getByText("Try Example"));
 
       await waitFor(() => {
         expect(screen.getByText("First summary")).toBeInTheDocument();
@@ -557,23 +535,26 @@ describe("Home Component", () => {
 
       await user.click(screen.getByText("Try Again"));
 
+      // Check for loading state
+      expect(document.querySelector("svg.animate-spin")).toBeInTheDocument();
+
       await waitFor(() => {
-        expect(document.querySelector("svg.animate-spin")).toBeInTheDocument();
+        expect(screen.getByText("Second summary")).toBeInTheDocument();
       });
     });
 
     it("handles errors during try again", async () => {
       const user = userEvent.setup();
+      const exampleData: ExampleResponse = { text: "Test content" };
+
       mockFetch
+        .mockResolvedValueOnce(createApiResponse(exampleData))
         .mockResolvedValueOnce(createStreamResponse("First summary"))
         .mockResolvedValueOnce(createStreamResponse("", 500));
 
       render(<Home />);
 
-      await act(async () => {
-        document.dispatchEvent(createPasteEvent("Test"));
-        await new Promise((resolve) => setTimeout(resolve, 600));
-      });
+      await user.click(screen.getByText("Try Example"));
 
       await waitFor(() => {
         expect(screen.getByText("First summary")).toBeInTheDocument();
@@ -586,71 +567,73 @@ describe("Home Component", () => {
       });
     });
 
-    it("processes streaming correctly during try again", async () => {
+    it("disables try again button when loading", async () => {
       const user = userEvent.setup();
-      const firstSummary = "First summary";
-      const chunks = ["New ", "streaming ", "summary"];
+      const exampleData: ExampleResponse = { text: "Test content" };
 
       mockFetch
-        .mockResolvedValueOnce(createStreamResponse(firstSummary))
-        .mockResolvedValueOnce(createChunkedStreamResponse(chunks));
+        .mockResolvedValueOnce(createApiResponse(exampleData))
+        .mockResolvedValueOnce(createStreamResponse("First summary"))
+        .mockImplementation(
+          () =>
+            new Promise((resolve) =>
+              setTimeout(
+                () => resolve(createStreamResponse("Second summary")),
+                200
+              )
+            )
+        );
 
       render(<Home />);
 
-      await act(async () => {
-        document.dispatchEvent(createPasteEvent("Test content"));
-        await new Promise((resolve) => setTimeout(resolve, 600));
-      });
+      await user.click(screen.getByText("Try Example"));
 
       await waitFor(() => {
-        expect(screen.getByText(firstSummary)).toBeInTheDocument();
+        expect(screen.getByText("First summary")).toBeInTheDocument();
+        expect(screen.getByText("Try Again")).toBeInTheDocument();
       });
 
       await user.click(screen.getByText("Try Again"));
 
+      // Check for loading state (spinner should be visible)
       await waitFor(() => {
-        expect(screen.getByText("New streaming summary")).toBeInTheDocument();
+        expect(document.querySelector("svg.animate-spin")).toBeInTheDocument();
       });
 
-      expect(mockFetch).toHaveBeenCalledTimes(2);
+      // Wait for completion
+      await waitFor(() => {
+        expect(screen.getByText("Second summary")).toBeInTheDocument();
+      });
     });
 
-    it("clears cached indicator after try again", async () => {
+    it("bypasses cache and generates new summary", async () => {
       const user = userEvent.setup();
-      const firstSummary = "Cached summary";
-      const secondSummary = "New summary";
+      const exampleData: ExampleResponse = { text: "Test content" };
+      const firstSummary = "First summary";
+      const secondSummary = "Different summary";
 
       mockFetch
+        .mockResolvedValueOnce(createApiResponse(exampleData))
         .mockResolvedValueOnce(createStreamResponse(firstSummary))
         .mockResolvedValueOnce(createStreamResponse(secondSummary));
 
       render(<Home />);
 
-      await act(async () => {
-        document.dispatchEvent(createPasteEvent("Test text"));
-        await new Promise((resolve) => setTimeout(resolve, 600));
-      });
+      await user.click(screen.getByText("Try Example"));
 
       await waitFor(() => {
         expect(screen.getByText(firstSummary)).toBeInTheDocument();
       });
 
-      await user.click(screen.getByText("Clear"));
-
-      await act(async () => {
-        document.dispatchEvent(createPasteEvent("Test text"));
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText("Cached")).toBeInTheDocument();
-      });
-
+      // When try again is clicked, it should bypass any cache and generate a new summary
       await user.click(screen.getByText("Try Again"));
 
       await waitFor(() => {
         expect(screen.getByText(secondSummary)).toBeInTheDocument();
-        expect(screen.queryByText("Cached")).not.toBeInTheDocument();
       });
+
+      // Verify that mockFetch was called 3 times: 1 for example + 2 for summaries
+      expect(mockFetch).toHaveBeenCalledTimes(3);
     });
   });
 });

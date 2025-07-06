@@ -7,8 +7,6 @@ export const config: AppConfig = {
   debounceDelay: 500,
   copiedFeedbackDuration: 2000,
   cachedFeedbackDuration: 2000,
-  minTextLength: 10,
-  maxTextLength: 50000,
 };
 
 export const endpoints = {

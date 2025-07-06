@@ -17,7 +17,7 @@ export function useTextSummary(): UseTextSummaryReturn {
   const [copied, setCopied] = useState(false);
   const [isCached, setIsCached] = useState(false);
   
-  const timeoutRef = useRef<NodeJS.Timeout | undefined>();
+  const timeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const cacheRef = useRef<SummaryCache>(new Map<string, string>());
 
   const getErrorMessage = useCallback((error: unknown): string => {

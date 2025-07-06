@@ -74,13 +74,6 @@ export interface StreamChunk {
   done: boolean;
 }
 
-export interface ApiResponse<T> {
-  ok: boolean;
-  status: number;
-  data?: T;
-  error?: string;
-}
-
 export type SummaryCache = Map<string, string>;
 
 export interface AppConfig {
@@ -90,6 +83,4 @@ export interface AppConfig {
   copiedFeedbackDuration: number;
   cachedFeedbackDuration: number;
   cacheSize: number;
-  minTextLength: number;
-  maxTextLength: number;
 } 
