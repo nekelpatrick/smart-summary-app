@@ -7,4 +7,14 @@ pytest-cov==4.1.0
 pytest-asyncio==0.21.1
 httpx==0.25.2
 pydantic==2.6.1
-python-multipart==0.0.6 
+python-multipart==0.0.6
+langgraph==0.0.55
+langchain==0.1.10
+langchain-openai==0.0.8
+langchain-core==0.1.30
+langchain-community==0.0.24
+tiktoken==0.6.0
+redis==5.0.1
+sentence-transformers>=2.3.0
+numpy>=1.26.0
+faiss-cpu>=1.7.4 

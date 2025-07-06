@@ -1,7 +1,37 @@
+export enum LLMProvider {
+  OPENAI = 'openai',
+  ANTHROPIC = 'anthropic',
+  GOOGLE = 'google',
+  MISTRAL = 'mistral',
+  COHERE = 'cohere',
+}
+
+export enum ProviderStatus {
+  ENABLED = 'enabled',
+  DISABLED = 'disabled',
+  COMING_SOON = 'coming_soon',
+}
+
+export interface ProviderInfo {
+  id: string;
+  name: string;
+  description: string;
+  status: ProviderStatus;
+  enabled: boolean;
+  key_prefix: string;
+  min_key_length: number;
+}
+
+export interface ProvidersListResponse {
+  providers: ProviderInfo[];
+  default_provider: string;
+}
+
 export interface SummaryRequest {
   text: string;
   max_length?: number;
   api_key?: string;
+  provider?: LLMProvider;
 }
 
 export interface SummaryResponse {
@@ -14,6 +44,7 @@ export interface ExampleResponse {
 
 export interface ApiKeyValidationRequest {
   api_key: string;
+  provider: LLMProvider;
 }
 
 export interface ApiKeyValidationResponse {
@@ -61,11 +92,15 @@ export interface MobileTextInputProps {
 
 export interface ApiKeyInputProps {
   apiKey: string;
+  selectedProvider: LLMProvider;
+  availableProviders: ProviderInfo[];
   onApiKeyChange: (apiKey: string) => void;
+  onProviderChange: (provider: LLMProvider) => void;
   validating: boolean;
   validationStatus: ApiKeyValidationStatus;
   onValidate: () => void;
   onClear: () => void;
+  loadingProviders: boolean;
 }
 
 export interface UsePasteHandlerProps {
@@ -82,8 +117,11 @@ export interface UseTextSummaryReturn {
   copied: boolean;
   isCached: boolean;
   apiKey: string;
+  selectedProvider: LLMProvider;
+  availableProviders: ProviderInfo[];
   apiKeyValidationStatus: ApiKeyValidationStatus;
   validatingApiKey: boolean;
+  loadingProviders: boolean;
   setText: (text: string) => void;
   summarize: (content: string) => Promise<void>;
   copyToClipboard: () => void;
@@ -91,6 +129,7 @@ export interface UseTextSummaryReturn {
   loadExample: () => Promise<void>;
   tryAgain: () => Promise<void>;
   setApiKey: (apiKey: string) => void;
+  setSelectedProvider: (provider: LLMProvider) => void;
   validateApiKey: () => Promise<void>;
   clearApiKey: () => void;
 }
@@ -117,4 +156,6 @@ export interface ApiKeyStorage {
   getApiKey: () => string | null;
   setApiKey: (apiKey: string) => void;
   clearApiKey: () => void;
+  getSelectedProvider: () => LLMProvider;
+  setSelectedProvider: (provider: LLMProvider) => void;
 } 

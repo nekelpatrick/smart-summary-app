@@ -14,4 +14,5 @@ export const endpoints = {
   example: "/example",
   health: "/health",
   validateApiKey: "/validate-api-key",
+  providers: "/providers",
 } as const; 

@@ -4,4 +4,6 @@ export { TextDisplay } from "./TextDisplay";
 export { ResultDisplay } from "./ResultDisplay";
 export { MobileTextInput } from "./MobileTextInput";
 export { ErrorBoundary } from "./ErrorBoundary";
-export { default as ApiKeyInput } from "./ApiKeyInput"; 
+export { default as ApiKeyInput } from "./ApiKeyInput";
+export { default as AnalyticsDashboard } from "./AnalyticsDashboard";
+export { default as TextAnalyzer } from "./TextAnalyzer"; 

@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import patch, Mock, AsyncMock
 from fastapi.testclient import TestClient
 from app.main import app
+from app.models import LLMProvider, ProviderStatus
 
 client = TestClient(app)
 
@@ -39,6 +40,35 @@ class TestRootEndpoint:
         assert "version" in data
 
 
+class TestProvidersEndpoint:
+    def test_get_providers(self):
+        response = client.get("/providers")
+        assert response.status_code == 200
+        data = response.json()
+
+        assert "providers" in data
+        assert "default_provider" in data
+        assert isinstance(data["providers"], list)
+        assert len(data["providers"]) > 0
+        assert data["default_provider"] == LLMProvider.OPENAI
+
+        # Check that OpenAI is in the list and enabled
+        openai_provider = next(
+            (p for p in data["providers"] if p["id"] == LLMProvider.OPENAI), None)
+        assert openai_provider is not None
+        assert openai_provider["enabled"] is True
+        assert openai_provider["status"] == ProviderStatus.ENABLED
+        assert openai_provider["name"] == "OpenAI"
+        assert openai_provider["key_prefix"] == "sk-"
+
+        # Check that other providers are disabled
+        for provider in data["providers"]:
+            if provider["id"] != LLMProvider.OPENAI:
+                assert provider["enabled"] is False
+                assert provider["status"] in [
+                    ProviderStatus.DISABLED, ProviderStatus.COMING_SOON]
+
+
 class TestExampleEndpoint:
     def test_example(self):
         response = client.get("/example")
@@ -72,19 +102,70 @@ class TestApiKeyValidationEndpoint:
         response = client.post("/validate-api-key", json={"api_key": "sk-abc"})
         assert response.status_code == 422
 
-    def test_validate_api_key_valid_format_success(self, mock_llm_service):
+    def test_validate_api_key_missing_provider(self):
+        valid_key = "sk-" + "a" * 48
+        response = client.post("/validate-api-key",
+                               json={"api_key": valid_key})
+        assert response.status_code == 422
+
+    def test_validate_api_key_openai_provider_success(self, mock_llm_service):
         mock_llm_service.validate_api_key.return_value = (
             True, "API key is valid")
 
         valid_key = "sk-" + "a" * 48
         response = client.post("/validate-api-key",
-                               json={"api_key": valid_key})
+                               json={"api_key": valid_key, "provider": LLMProvider.OPENAI})
 
         assert response.status_code == 200
         data = response.json()
         assert data["valid"] is True
         assert data["message"] == "API key is valid"
-        assert data["provider"] == "openai"
+        assert data["provider"] == LLMProvider.OPENAI
+
+    def test_validate_api_key_disabled_provider(self):
+        valid_key = "sk-ant-" + "a" * 95  # Anthropic format
+        response = client.post("/validate-api-key",
+                               json={"api_key": valid_key, "provider": LLMProvider.ANTHROPIC})
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["valid"] is False
+        assert "not currently supported" in data["message"]
+        assert data["provider"] == LLMProvider.ANTHROPIC
+
+    def test_validate_api_key_wrong_format_for_provider(self):
+        # OpenAI key format for Anthropic provider
+        openai_key = "sk-" + "a" * 48
+        response = client.post("/validate-api-key",
+                               json={"api_key": openai_key, "provider": LLMProvider.ANTHROPIC})
+
+        assert response.status_code == 422
+
+    def test_validate_api_key_anthropic_format_validation(self):
+        # Correct Anthropic format but provider not supported
+        anthropic_key = "sk-ant-" + "a" * 95
+        response = client.post("/validate-api-key",
+                               json={"api_key": anthropic_key, "provider": LLMProvider.ANTHROPIC})
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["valid"] is False
+        assert "not currently supported" in data["message"]
+
+    def test_validate_api_key_google_format_validation(self):
+        # Google format
+        google_key = "a" * 39
+        response = client.post("/validate-api-key",
+                               json={"api_key": google_key, "provider": LLMProvider.GOOGLE})
+
+        assert response.status_code == 422  # Provider validation fails first
+
+    def test_validate_api_key_invalid_provider(self):
+        valid_key = "sk-" + "a" * 48
+        response = client.post("/validate-api-key",
+                               json={"api_key": valid_key, "provider": "invalid_provider"})
+
+        assert response.status_code == 422
 
     def test_validate_api_key_invalid_key_authentication_failed(self, mock_llm_service):
         mock_llm_service.validate_api_key.return_value = (
@@ -92,13 +173,13 @@ class TestApiKeyValidationEndpoint:
 
         valid_key = "sk-" + "a" * 48
         response = client.post("/validate-api-key",
-                               json={"api_key": valid_key})
+                               json={"api_key": valid_key, "provider": LLMProvider.OPENAI})
 
         assert response.status_code == 200
         data = response.json()
         assert data["valid"] is False
         assert data["message"] == "Invalid API key - authentication failed"
-        assert data["provider"] == "openai"
+        assert data["provider"] == LLMProvider.OPENAI
 
     def test_validate_api_key_rate_limit_exceeded(self, mock_llm_service):
         mock_llm_service.validate_api_key.return_value = (
@@ -106,13 +187,13 @@ class TestApiKeyValidationEndpoint:
 
         valid_key = "sk-" + "a" * 48
         response = client.post("/validate-api-key",
-                               json={"api_key": valid_key})
+                               json={"api_key": valid_key, "provider": LLMProvider.OPENAI})
 
         assert response.status_code == 200
         data = response.json()
         assert data["valid"] is False
         assert data["message"] == "API key rate limit exceeded - please try again later"
-        assert data["provider"] == "openai"
+        assert data["provider"] == LLMProvider.OPENAI
 
     def test_validate_api_key_service_error(self, mock_llm_service):
         mock_llm_service.validate_api_key.side_effect = Exception(
@@ -120,7 +201,7 @@ class TestApiKeyValidationEndpoint:
 
         valid_key = "sk-" + "a" * 48
         response = client.post("/validate-api-key",
-                               json={"api_key": valid_key})
+                               json={"api_key": valid_key, "provider": LLMProvider.OPENAI})
 
         assert response.status_code == 500
         data = response.json()
@@ -168,6 +249,40 @@ class TestSummarizeEndpoint:
         response = client.post("/summarize", json={"text": "Valid text"})
         assert response.status_code == 200
 
+    def test_summarize_default_provider(self, mock_llm_service):
+        mock_llm_service.summarize.return_value = "This is a mock summary."
+
+        text = "Test text for summarization."
+        response = client.post(
+            "/summarize", json={"text": text, "max_length": 50})
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "summary" in data
+        assert data["summary"] == "This is a mock summary."
+
+    def test_summarize_openai_provider_explicit(self, mock_llm_service):
+        mock_llm_service.summarize.return_value = "This is a mock summary."
+
+        text = "Test text for summarization."
+        response = client.post(
+            "/summarize", json={"text": text, "max_length": 50, "provider": LLMProvider.OPENAI})
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "summary" in data
+        assert data["summary"] == "This is a mock summary."
+
+    def test_summarize_disabled_provider(self, mock_llm_service):
+        text = "Test text for summarization."
+        response = client.post(
+            "/summarize", json={"text": text, "max_length": 50, "provider": LLMProvider.ANTHROPIC})
+
+        assert response.status_code == 400
+        data = response.json()
+        assert "detail" in data
+        assert "not currently supported" in data["detail"]
+
     def test_summarize_invalid_json(self, mock_llm_service):
         response = client.post("/summarize", data="invalid json")
         assert response.status_code == 422
@@ -191,6 +306,20 @@ class TestSummarizeEndpoint:
         api_key = "sk-" + "a" * 48
         response = client.post(
             "/summarize", json={"text": text, "max_length": 50, "api_key": api_key})
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "summary" in data
+        assert data["summary"] == "This is a mock summary."
+        mock_llm_service.summarize.assert_called_once_with(text, 50, api_key)
+
+    def test_summarize_with_custom_api_key_and_provider(self, mock_llm_service):
+        mock_llm_service.summarize.return_value = "This is a mock summary."
+
+        text = "Test text for summarization."
+        api_key = "sk-" + "a" * 48
+        response = client.post(
+            "/summarize", json={"text": text, "max_length": 50, "api_key": api_key, "provider": LLMProvider.OPENAI})
 
         assert response.status_code == 200
         data = response.json()
@@ -247,6 +376,32 @@ class TestSummarizeStreamEndpoint:
             "/summarize/stream", json={"text": "   ", "max_length": 100})
         assert response.status_code == 422
 
+    def test_summarize_stream_default_provider(self, mock_llm_service):
+        text = "Test text for summarization."
+        response = client.post(
+            "/summarize/stream", json={"text": text, "max_length": 50})
+
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "text/plain; charset=utf-8"
+
+    def test_summarize_stream_openai_provider_explicit(self, mock_llm_service):
+        text = "Test text for summarization."
+        response = client.post(
+            "/summarize/stream", json={"text": text, "max_length": 50, "provider": LLMProvider.OPENAI})
+
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "text/plain; charset=utf-8"
+
+    def test_summarize_stream_disabled_provider(self, mock_llm_service):
+        text = "Test text for summarization."
+        response = client.post(
+            "/summarize/stream", json={"text": text, "max_length": 50, "provider": LLMProvider.ANTHROPIC})
+
+        assert response.status_code == 400
+        data = response.json()
+        assert "detail" in data
+        assert "not currently supported" in data["detail"]
+
     def test_summarize_stream_with_custom_api_key(self, mock_llm_service):
         text = "Test text for summarization."
         api_key = "sk-" + "a" * 48
@@ -255,8 +410,15 @@ class TestSummarizeStreamEndpoint:
 
         assert response.status_code == 200
         assert response.headers["content-type"] == "text/plain; charset=utf-8"
-        # Verify that summarize_stream was called with the correct arguments
-        # Note: We can't easily verify the exact call args due to the async generator nature
+
+    def test_summarize_stream_with_custom_api_key_and_provider(self, mock_llm_service):
+        text = "Test text for summarization."
+        api_key = "sk-" + "a" * 48
+        response = client.post(
+            "/summarize/stream", json={"text": text, "max_length": 50, "api_key": api_key, "provider": LLMProvider.OPENAI})
+
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "text/plain; charset=utf-8"
 
     def test_summarize_stream_with_invalid_api_key_format(self, mock_llm_service):
         text = "Test text for summarization."

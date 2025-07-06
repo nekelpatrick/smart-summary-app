@@ -1,17 +1,20 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { config } from "../config";
 import { normalizeText, isValidText } from "../utils/text";
 import { apiService } from "../services/apiService";
+import { LLMProvider, ProviderStatus } from "../types";
 import type { 
   SummaryRequest, 
   UseTextSummaryReturn,
   SummaryCache,
   ApiError,
   ApiKeyValidationStatus,
-  ApiKeyValidationRequest
+  ApiKeyValidationRequest,
+  ProviderInfo
 } from "../types";
 
 const API_KEY_STORAGE_KEY = 'openai-api-key';
+const PROVIDER_STORAGE_KEY = 'selected-provider';
 
 export function useTextSummary(): UseTextSummaryReturn {
   const [text, setText] = useState("");
@@ -26,6 +29,15 @@ export function useTextSummary(): UseTextSummaryReturn {
     }
     return '';
   });
+  const [selectedProvider, setSelectedProviderState] = useState<LLMProvider>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(PROVIDER_STORAGE_KEY);
+      return (saved as LLMProvider) || LLMProvider.OPENAI;
+    }
+    return LLMProvider.OPENAI;
+  });
+  const [availableProviders, setAvailableProviders] = useState<ProviderInfo[]>([]);
+  const [loadingProviders, setLoadingProviders] = useState(true);
   const [apiKeyValidationStatus, setApiKeyValidationStatus] = useState<ApiKeyValidationStatus>('idle');
   const [validatingApiKey, setValidatingApiKey] = useState(false);
   
@@ -65,6 +77,37 @@ export function useTextSummary(): UseTextSummaryReturn {
     }
   }, []);
 
+  const loadProviders = useCallback(async (): Promise<void> => {
+    try {
+      setLoadingProviders(true);
+      const providersData = await apiService.getProviders();
+      setAvailableProviders(providersData.providers);
+      
+      // If current provider is not in the list or not enabled, switch to default
+      const currentProvider = providersData.providers.find(p => p.id === selectedProvider);
+      if (!currentProvider || !currentProvider.enabled) {
+        setSelectedProviderState(providersData.default_provider as LLMProvider);
+      }
+    } catch (err) {
+      const errorMessage = getErrorMessage(err);
+      setError(`Failed to load providers: ${errorMessage}`);
+      // Fallback to default provider configuration
+      setAvailableProviders([
+        {
+          id: LLMProvider.OPENAI,
+          name: "OpenAI",
+          description: "GPT models (GPT-3.5, GPT-4, etc.)",
+          status: ProviderStatus.ENABLED,
+          enabled: true,
+          key_prefix: "sk-",
+          min_key_length: 51
+        }
+      ]);
+    } finally {
+      setLoadingProviders(false);
+    }
+  }, [selectedProvider, getErrorMessage]);
+
   const setApiKey = useCallback((key: string): void => {
     setApiKeyState(key);
     if (typeof window !== 'undefined') {
@@ -74,6 +117,15 @@ export function useTextSummary(): UseTextSummaryReturn {
         localStorage.removeItem(API_KEY_STORAGE_KEY);
       }
     }
+    setApiKeyValidationStatus('idle');
+  }, []);
+
+  const setSelectedProvider = useCallback((provider: LLMProvider): void => {
+    setSelectedProviderState(provider);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(PROVIDER_STORAGE_KEY, provider);
+    }
+    // Reset API key validation when provider changes
     setApiKeyValidationStatus('idle');
   }, []);
 
@@ -92,7 +144,10 @@ export function useTextSummary(): UseTextSummaryReturn {
     setApiKeyValidationStatus('idle');
 
     try {
-      const request: ApiKeyValidationRequest = { api_key: apiKey.trim() };
+      const request: ApiKeyValidationRequest = { 
+        api_key: apiKey.trim(),
+        provider: selectedProvider
+      };
       const result = await apiService.validateApiKey(request);
       
       if (result.valid) {
@@ -108,7 +163,7 @@ export function useTextSummary(): UseTextSummaryReturn {
     } finally {
       setValidatingApiKey(false);
     }
-  }, [apiKey, getErrorMessage]);
+  }, [apiKey, selectedProvider, getErrorMessage]);
 
   const summarize = useCallback(async (content: string): Promise<void> => {
     if (!isValidText(content)) {
@@ -142,7 +197,8 @@ export function useTextSummary(): UseTextSummaryReturn {
       const request: SummaryRequest = { 
         text: content, 
         max_length: config.defaultMaxLength,
-        api_key: apiKey || undefined
+        api_key: apiKey || undefined,
+        provider: selectedProvider
       };
 
       const result = await apiService.summarizeText(request, (progressContent) => {
@@ -158,7 +214,7 @@ export function useTextSummary(): UseTextSummaryReturn {
     } finally {
       setLoading(false);
     }
-  }, [updateCache, getErrorMessage, clearTimeouts, apiKey]);
+  }, [updateCache, getErrorMessage, clearTimeouts, apiKey, selectedProvider]);
 
   const copyToClipboard = useCallback(async (): Promise<void> => {
     if (!summary) return;
@@ -225,7 +281,8 @@ export function useTextSummary(): UseTextSummaryReturn {
       const request: SummaryRequest = { 
         text: text, 
         max_length: config.defaultMaxLength,
-        api_key: apiKey || undefined
+        api_key: apiKey || undefined,
+        provider: selectedProvider
       };
 
       const result = await apiService.summarizeText(request, (progressContent) => {
@@ -241,7 +298,12 @@ export function useTextSummary(): UseTextSummaryReturn {
     } finally {
       setLoading(false);
     }
-  }, [text, updateCache, getErrorMessage, apiKey]);
+  }, [text, updateCache, getErrorMessage, apiKey, selectedProvider]);
+
+  // Load providers on component mount
+  useEffect(() => {
+    loadProviders();
+  }, [loadProviders]);
 
   return {
     text,
@@ -251,8 +313,11 @@ export function useTextSummary(): UseTextSummaryReturn {
     copied,
     isCached,
     apiKey,
+    selectedProvider,
+    availableProviders,
     apiKeyValidationStatus,
     validatingApiKey,
+    loadingProviders,
     setText,
     summarize,
     copyToClipboard,
@@ -260,6 +325,7 @@ export function useTextSummary(): UseTextSummaryReturn {
     loadExample,
     tryAgain,
     setApiKey,
+    setSelectedProvider,
     validateApiKey,
     clearApiKey,
   };

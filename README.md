@@ -4,7 +4,9 @@ A full-stack application that allows users to paste text and receive AI-powered 
 
 ## Features
 
-- **Custom API Keys**: Bring your own OpenAI API key for unlimited usage and personalized rate limits
+- **Multiple LLM Providers**: Support for OpenAI, Anthropic, Google, and other providers (OpenAI currently available)
+- **Custom API Keys**: Bring your own API key for unlimited usage and personalized rate limits
+- **Provider Selection**: Choose from multiple AI providers with clear status indicators
 - **Real-time Streaming**: See summaries generate word-by-word as they're created
 - **Try Again**: Regenerate summaries to get different results
 - **Smart Caching**: Instant results for previously summarized text (up to 50 entries)
@@ -59,35 +61,59 @@ echo "OPENAI_API_KEY=your_openai_api_key_here" > .env
 docker-compose up --build -d
 ```
 
-## API Key Management
+## Provider Selection & API Key Management
+
+### Available Providers
+
+The application supports multiple AI providers with different availability status:
+
+- **OpenAI** ✅ Available - GPT models (GPT-3.5, GPT-4, etc.)
+- **Anthropic** ⏸️ Disabled - Claude models (coming soon)
+- **Google** 🔄 Coming Soon - Gemini models
+- **Mistral AI** 🔄 Coming Soon - Mistral models
+- **Cohere** 🔄 Coming Soon - Command models
 
 ### User-Provided API Keys
 
-Users can provide their own OpenAI API keys for:
+Users can provide their own API keys for supported providers:
 
 - **Unlimited Usage**: No shared rate limits
-- **Cost Control**: Direct billing to their OpenAI account
+- **Cost Control**: Direct billing to their provider account
 - **Enhanced Privacy**: API requests use their own key
+- **Provider-Specific Validation**: Keys are validated according to each provider's format
 
 **How to use:**
 
-1. Get your API key from [OpenAI Platform](https://platform.openai.com/api-keys)
-2. Enter it in the "OpenAI API Key (Optional)" field
-3. Click "Validate" to verify the key
-4. Start summarizing with your personal quota
+1. Select your preferred provider from the dropdown
+2. Get your API key from the provider's platform:
+   - [OpenAI Platform](https://platform.openai.com/api-keys) for OpenAI keys
+   - Other provider links shown when applicable
+3. Enter it in the "API Key (Optional)" field
+4. Click "Validate" to verify the key
+5. Start summarizing with your personal quota
+
+**Key Format Validation:**
+
+- **OpenAI**: `sk-` followed by 48+ characters
+- **Anthropic**: `sk-ant-` followed by 95+ characters
+- **Google**: 39-character alphanumeric string
+- **Mistral**: 32-character alphanumeric string
+- **Cohere**: 40-character alphanumeric string with hyphens
 
 **Security:**
 
 - API keys are stored locally in browser storage only
+- Selected provider preference is saved locally
 - Keys are never saved on our servers
 - Each request includes the user's key when provided
 
 ### Fallback API Key
 
-A default API key (configured via environment variables) is used when:
+A default OpenAI API key (configured via environment variables) is used when:
 
 - Users don't provide their own key
 - User-provided key validation fails
+- Selected provider is not currently available
 - Rate limiting or other issues occur
 
 ## Testing
@@ -108,16 +134,18 @@ smart-summary-app/
 │   ├── backend/          # FastAPI backend
 │   │   ├── app/
 │   │   │   ├── main.py           # API endpoints
-│   │   │   ├── models.py         # Data models & validation
+│   │   │   ├── models.py         # Provider models & validation
 │   │   │   └── services/
 │   │   │       └── llm_service.py # OpenAI integration
 │   │   └── requirements.txt
 │   └── frontend/         # Next.js frontend
 │       └── src/app/
 │           ├── components/
-│           │   └── ApiKeyInput.tsx  # API key management
+│           │   └── ApiKeyInput.tsx  # Provider selection & API key management
 │           ├── hooks/
-│           │   └── useTextSummary.ts # API key integration
+│           │   └── useTextSummary.ts # Provider & API key integration
+│           ├── types/
+│           │   └── index.ts         # Provider types & interfaces
 │           └── page.tsx             # Main application
 ├── docker-compose.yml
 └── package.json
@@ -126,9 +154,10 @@ smart-summary-app/
 ## API Endpoints
 
 - `GET /health` - Health check
+- `GET /providers` - Get available providers and their status
 - `GET /example` - Get example text for testing
-- `POST /validate-api-key` - Validate user-provided OpenAI API keys
-- `POST /summarize/stream` - Stream summarization results in real-time (supports custom API keys)
+- `POST /validate-api-key` - Validate user-provided API keys for specific providers
+- `POST /summarize/stream` - Stream summarization results in real-time (supports custom API keys and provider selection)
 
 ## Environment Variables
 
@@ -138,7 +167,7 @@ smart-summary-app/
 ## Ideas for Future Improvements
 
 - **User Authentication**: Allow users to save and manage their summaries
-- **Multiple LLM Providers**: Support for Anthropic Claude, Mistral, and other LLM APIs
+- **Additional LLM Providers**: Enable Anthropic Claude, Google Gemini, Mistral, and Cohere support
 - **Customization Options**: Adjustable summary length, tone, and style preferences
 - **Export Features**: Download summaries as PDF, Word, or Markdown files
 - **Multi-language Support**: Summarization in different languages
