@@ -174,7 +174,6 @@ export default function ApiKeyInput({
 
   return (
     <div className="space-y-4">
-      {/* Provider Selection */}
       <div className="space-y-2">
         <label
           htmlFor="provider-select"
@@ -213,7 +212,6 @@ export default function ApiKeyInput({
         </div>
       </div>
 
-      {/* API Key Input */}
       <div className="space-y-2">
         <label htmlFor="api-key" className="text-sm font-medium text-gray-700">
           API Key (Optional)
@@ -250,7 +248,6 @@ export default function ApiKeyInput({
         )}
       </div>
 
-      {/* Actions */}
       <div className="flex gap-2">
         {inputValue.trim() && (
           <button
@@ -279,7 +276,6 @@ export default function ApiKeyInput({
         )}
       </div>
 
-      {/* Help Text */}
       {getProviderHelp()}
     </div>
   );

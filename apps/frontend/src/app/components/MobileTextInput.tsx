@@ -15,7 +15,6 @@ export function MobileTextInput({
   const MAX_CHARS = 50000;
   const RECOMMENDED_CHARS = 200;
 
-  // Update counts in real-time
   useEffect(() => {
     const words = text
       .trim()
@@ -26,7 +25,6 @@ export function MobileTextInput({
     setCharCount(chars);
   }, [text]);
 
-  // Show tip after a short delay when focused
   useEffect(() => {
     if (isFocused && text.length === 0) {
       const timer = setTimeout(() => setShowTip(true), 1000);
@@ -105,7 +103,6 @@ export function MobileTextInput({
                 maxLength={MAX_CHARS}
               />
 
-              {/* Character counter overlay */}
               {text.length > 0 && (
                 <div className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm rounded-lg px-2 py-1 text-xs border border-gray-200">
                   <span className={charStatus.color}>
@@ -115,7 +112,6 @@ export function MobileTextInput({
               )}
             </div>
 
-            {/* Stats and feedback */}
             <div className="mt-4 flex items-center justify-between">
               <div id="text-stats" className="flex items-center gap-4 text-sm">
                 <span className="text-gray-600">
@@ -162,7 +158,6 @@ export function MobileTextInput({
             </div>
           </div>
 
-          {/* Animated tip */}
           {showTip && (
             <div className="absolute -bottom-12 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-3 py-2 rounded-lg animate-in fade-in slide-in-from-top duration-300">
               <div className="flex items-center gap-2">
@@ -174,7 +169,6 @@ export function MobileTextInput({
           )}
         </div>
 
-        {/* Keyboard shortcuts hint */}
         <div className="mt-4 text-center">
           <div className="inline-flex items-center gap-2 text-sm text-gray-500 bg-gray-50 px-4 py-2 rounded-lg">
             <span>⌨️</span>

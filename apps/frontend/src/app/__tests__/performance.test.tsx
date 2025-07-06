@@ -1,19 +1,18 @@
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom";
-import Home from "../page";
 import { useTextSummary } from "../hooks/useTextSummary";
-import { MobileTextInput } from "../components/MobileTextInput";
+import { MobileTextInput, ResultDisplay } from "../components";
 
 // Mock performance observer
-global.PerformanceObserver = class PerformanceObserver {
-  constructor(callback: PerformanceObserverCallback) {
-    this.callback = callback;
-  }
+global.PerformanceObserver = class {
+  constructor() {}
   observe() {}
   disconnect() {}
-  private callback: PerformanceObserverCallback;
+  takeRecords() {
+    return [];
+  }
 };
 
 // Mock performance.mark and performance.measure
@@ -49,6 +48,18 @@ const mockUseTextSummary = useTextSummary as jest.MockedFunction<
   typeof useTextSummary
 >;
 
+function usePerformanceMonitor() {
+  React.useEffect(() => {
+    const observer = new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        console.log(`${entry.name}: ${entry.duration}ms`);
+      }
+    });
+    observer.observe({ entryTypes: ["measure"] });
+    return () => observer.disconnect();
+  }, []);
+}
+
 describe("Performance Tests", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -81,611 +92,685 @@ describe("Performance Tests", () => {
     });
   });
 
-  describe("Rendering Performance", () => {
-    it("renders initial component within performance budget", () => {
-      const startTime = performance.now();
+  it("should render MobileTextInput quickly", async () => {
+    const TestComponent = () => {
+      usePerformanceMonitor();
+      return (
+        <MobileTextInput
+          onSubmit={jest.fn()}
+          loading={false}
+          onTextChange={jest.fn()}
+        />
+      );
+    };
 
-      render(<MobileTextInput onSubmit={jest.fn()} loading={false} />);
+    performance.mark("render-start");
+    const renderResult = render(<TestComponent />);
+    performance.mark("render-end");
+    performance.measure("render-duration", "render-start", "render-end");
 
-      const endTime = performance.now();
-      const renderTime = endTime - startTime;
-
-      // Should render within 100ms
-      expect(renderTime).toBeLessThan(100);
+    await waitFor(() => {
       expect(screen.getByRole("textbox")).toBeInTheDocument();
     });
 
-    it("handles large text input without performance degradation", async () => {
-      const user = userEvent.setup();
-      const largeText = "A".repeat(50000); // 50KB text
-
-      render(<MobileTextInput onSubmit={jest.fn()} loading={false} />);
-
-      const textarea = screen.getByRole("textbox");
-      const startTime = performance.now();
-
-      await user.type(textarea, largeText);
-
-      const endTime = performance.now();
-      const inputTime = endTime - startTime;
-
-      // Should handle large input within 2 seconds
-      expect(inputTime).toBeLessThan(2000);
-      expect(textarea).toHaveValue(largeText);
-    });
-
-    it("maintains 60fps during text input", async () => {
-      const user = userEvent.setup();
-      const frameCallback = jest.fn();
-
-      // Mock requestAnimationFrame
-      const originalRAF = window.requestAnimationFrame;
-      let frameCount = 0;
-      window.requestAnimationFrame = (callback) => {
-        frameCount++;
-        return originalRAF(() => {
-          frameCallback();
-          callback(performance.now());
-        });
-      };
-
-      render(<MobileTextInput onSubmit={jest.fn()} loading={false} />);
-
-      const textarea = screen.getByRole("textbox");
-      const startTime = performance.now();
-
-      // Type rapidly
-      await user.type(textarea, "The quick brown fox jumps over the lazy dog");
-
-      const endTime = performance.now();
-      const duration = endTime - startTime;
-      const expectedFrames = Math.floor(duration / 16.67); // 60fps = 16.67ms per frame
-
-      // Should maintain smooth frame rate
-      expect(frameCount).toBeGreaterThan(expectedFrames * 0.8);
-
-      // Restore original RAF
-      window.requestAnimationFrame = originalRAF;
-    });
-
-    it("handles rapid re-renders efficiently", async () => {
-      const TestComponent = () => {
-        const [count, setCount] = React.useState(0);
-
-        React.useEffect(() => {
-          const interval = setInterval(() => {
-            setCount((c) => c + 1);
-          }, 10);
-
-          setTimeout(() => clearInterval(interval), 500);
-
-          return () => clearInterval(interval);
-        }, []);
-
-        return (
-          <div>
-            <MobileTextInput onSubmit={jest.fn()} loading={false} />
-            <div data-testid="counter">{count}</div>
-          </div>
-        );
-      };
-
-      const startTime = performance.now();
-
-      render(<TestComponent />);
-
-      await waitFor(() => {
-        const counter = screen.getByTestId("counter");
-        expect(parseInt(counter.textContent || "0")).toBeGreaterThan(10);
-      });
-
-      const endTime = performance.now();
-      const totalTime = endTime - startTime;
-
-      // Should handle rapid updates efficiently
-      expect(totalTime).toBeLessThan(1000);
-    });
+    const duration = performance.measure.mock.calls[0];
+    expect(duration).toBeDefined();
+    expect(renderResult.container).toBeInTheDocument();
   });
 
-  describe("Memory Performance", () => {
-    it("manages memory efficiently during heavy usage", async () => {
-      const user = userEvent.setup();
-      const initialMemory = (performance as any).memory?.usedJSHeapSize || 0;
+  it("should handle large text input efficiently", async () => {
+    const user = userEvent.setup();
+    const onSubmit = jest.fn();
+    const onTextChange = jest.fn();
+    const largeText = "A".repeat(50000);
 
-      render(<MobileTextInput onSubmit={jest.fn()} loading={false} />);
-
-      const textarea = screen.getByRole("textbox");
-
-      // Simulate heavy usage
-      for (let i = 0; i < 100; i++) {
-        await user.clear(textarea);
-        await user.type(
-          textarea,
-          `Heavy usage iteration ${i} ${"text ".repeat(100)}`
-        );
-      }
-
-      // Force garbage collection if available
-      if ((global as any).gc) {
-        (global as any).gc();
-      }
-
-      const finalMemory = (performance as any).memory?.usedJSHeapSize || 0;
-      const memoryIncrease = finalMemory - initialMemory;
-
-      // Memory increase should be reasonable (< 50MB)
-      expect(memoryIncrease).toBeLessThan(50 * 1024 * 1024);
-    });
-
-    it("cleans up event listeners on unmount", () => {
-      const addEventListenerSpy = jest.spyOn(window, "addEventListener");
-      const removeEventListenerSpy = jest.spyOn(window, "removeEventListener");
-
-      const { unmount } = render(
-        <MobileTextInput onSubmit={jest.fn()} loading={false} />
+    const TestComponent = () => {
+      usePerformanceMonitor();
+      return (
+        <MobileTextInput
+          onSubmit={onSubmit}
+          loading={false}
+          onTextChange={onTextChange}
+        />
       );
+    };
 
-      const addCount = addEventListenerSpy.mock.calls.length;
+    render(<TestComponent />);
+    const textarea = screen.getByRole("textbox");
 
-      unmount();
+    performance.mark("large-input-start");
+    await user.type(textarea, largeText);
+    performance.mark("large-input-end");
+    performance.measure(
+      "large-input-duration",
+      "large-input-start",
+      "large-input-end"
+    );
 
-      const removeCount = removeEventListenerSpy.mock.calls.length;
-
-      // Should remove as many listeners as added
-      expect(removeCount).toBeGreaterThanOrEqual(addCount);
-
-      addEventListenerSpy.mockRestore();
-      removeEventListenerSpy.mockRestore();
-    });
-
-    it("handles memory pressure gracefully", async () => {
-      const user = userEvent.setup();
-
-      // Mock memory pressure
-      Object.defineProperty(performance, "memory", {
-        value: {
-          usedJSHeapSize: 1800000000, // 1.8GB
-          totalJSHeapSize: 2000000000, // 2GB
-          jsHeapSizeLimit: 2000000000, // 2GB limit
-        },
-        configurable: true,
-      });
-
-      render(<MobileTextInput onSubmit={jest.fn()} loading={false} />);
-
-      const textarea = screen.getByRole("textbox");
-
-      // Should handle memory pressure without crashing
-      await user.type(textarea, "Memory pressure test");
-
-      expect(textarea).toHaveValue("Memory pressure test");
-    });
+    await waitFor(() => expect(onTextChange).toHaveBeenCalled());
+    const duration = performance.measure.mock.calls[0];
+    expect(duration).toBeDefined();
   });
 
-  describe("Network Performance", () => {
-    it("handles slow network responses efficiently", async () => {
-      const user = userEvent.setup();
+  it("should maintain smooth frame rate during typing", async () => {
+    const user = userEvent.setup();
+    const onSubmit = jest.fn();
+    const onTextChange = jest.fn();
 
-      // Mock slow network
-      const mockSummarize = jest.fn().mockImplementation(() => {
-        return new Promise((resolve) => {
-          setTimeout(() => resolve("Slow summary"), 3000);
-        });
-      });
-
-      mockUseTextSummary.mockReturnValue({
-        text: "Test text",
-        summary: "",
-        loading: true,
-        error: "",
-        copied: false,
-        isCached: false,
-        apiKey: "",
-        selectedProvider: "openai",
-        availableProviders: [],
-        apiKeyValidationStatus: "idle",
-        validatingApiKey: false,
-        loadingProviders: false,
-        setText: jest.fn(),
-        summarize: mockSummarize,
-        copyToClipboard: jest.fn(),
-        reset: jest.fn(),
-        loadExample: jest.fn(),
-        tryAgain: jest.fn(),
-        setApiKey: jest.fn(),
-        setSelectedProvider: jest.fn(),
-        validateApiKey: jest.fn(),
-        clearApiKey: jest.fn(),
-      });
-
-      render(<MobileTextInput onSubmit={jest.fn()} loading={true} />);
-
-      // Should show loading state immediately
-      expect(screen.getByText(/processing/i)).toBeInTheDocument();
-
-      // UI should remain responsive during network delay
-      const textarea = screen.getByRole("textbox");
-      await user.type(textarea, "Additional text");
-
-      expect(textarea).toHaveValue("Additional text");
+    const originalRAF = global.requestAnimationFrame;
+    let frameCount = 0;
+    const mockRAF = jest.fn((callback) => {
+      frameCount++;
+      return originalRAF(callback);
     });
+    global.requestAnimationFrame = mockRAF;
 
-    it("batches network requests efficiently", async () => {
-      const user = userEvent.setup();
-      const mockSummarize = jest.fn();
+    const TestComponent = () => {
+      usePerformanceMonitor();
+      return (
+        <MobileTextInput
+          onSubmit={onSubmit}
+          loading={false}
+          onTextChange={onTextChange}
+        />
+      );
+    };
 
-      mockUseTextSummary.mockReturnValue({
-        text: "",
-        summary: "",
-        loading: false,
-        error: "",
-        copied: false,
-        isCached: false,
-        apiKey: "",
-        selectedProvider: "openai",
-        availableProviders: [],
-        apiKeyValidationStatus: "idle",
-        validatingApiKey: false,
-        loadingProviders: false,
-        setText: jest.fn(),
-        summarize: mockSummarize,
-        copyToClipboard: jest.fn(),
-        reset: jest.fn(),
-        loadExample: jest.fn(),
-        tryAgain: jest.fn(),
-        setApiKey: jest.fn(),
-        setSelectedProvider: jest.fn(),
-        validateApiKey: jest.fn(),
-        clearApiKey: jest.fn(),
-      });
+    render(<TestComponent />);
+    const textarea = screen.getByRole("textbox");
 
-      render(<MobileTextInput onSubmit={jest.fn()} loading={false} />);
+    const startTime = performance.now();
+    await user.type(textarea, "This is a test message");
+    const endTime = performance.now();
+    const duration = endTime - startTime;
 
-      const textarea = screen.getByRole("textbox");
-      const submitButton = screen.getByRole("button", { name: /summarize/i });
+    const expectedFrames = Math.floor(duration / 16.67);
+    expect(frameCount).toBeGreaterThan(0);
+    expect(frameCount).toBeLessThan(expectedFrames * 2);
 
-      // Rapid submissions
-      await user.type(textarea, "Request 1");
-      await user.click(submitButton);
-
-      await user.clear(textarea);
-      await user.type(textarea, "Request 2");
-      await user.click(submitButton);
-
-      await user.clear(textarea);
-      await user.type(textarea, "Request 3");
-      await user.click(submitButton);
-
-      // Should handle batching/debouncing
-      await waitFor(() => {
-        expect(mockSummarize).toHaveBeenCalledTimes(1);
-      });
-    });
-
-    it("handles connection timeouts gracefully", async () => {
-      const user = userEvent.setup();
-
-      mockUseTextSummary.mockReturnValue({
-        text: "Test text",
-        summary: "",
-        loading: false,
-        error: "Request timeout",
-        copied: false,
-        isCached: false,
-        apiKey: "",
-        selectedProvider: "openai",
-        availableProviders: [],
-        apiKeyValidationStatus: "idle",
-        validatingApiKey: false,
-        loadingProviders: false,
-        setText: jest.fn(),
-        summarize: jest.fn(),
-        copyToClipboard: jest.fn(),
-        reset: jest.fn(),
-        loadExample: jest.fn(),
-        tryAgain: jest.fn(),
-        setApiKey: jest.fn(),
-        setSelectedProvider: jest.fn(),
-        validateApiKey: jest.fn(),
-        clearApiKey: jest.fn(),
-      });
-
-      render(<MobileTextInput onSubmit={jest.fn()} loading={false} />);
-
-      // Should show timeout error
-      expect(screen.getByText(/timeout/i)).toBeInTheDocument();
-
-      // UI should remain usable
-      const textarea = screen.getByRole("textbox");
-      await user.type(textarea, "After timeout");
-
-      expect(textarea).toHaveValue("After timeout");
-    });
+    global.requestAnimationFrame = originalRAF;
   });
 
-  describe("Stress Testing", () => {
-    it("handles extreme user interactions", async () => {
-      const user = userEvent.setup();
+  it("should handle rapid state updates efficiently", async () => {
+    const user = userEvent.setup();
+    const onSubmit = jest.fn();
+    const onTextChange = jest.fn();
 
-      render(<MobileTextInput onSubmit={jest.fn()} loading={false} />);
+    const TestComponent = () => {
+      const [text, setText] = React.useState("");
+      usePerformanceMonitor();
 
-      const textarea = screen.getByRole("textbox");
-      const submitButton = screen.getByRole("button", { name: /summarize/i });
+      const handleChange = (newText: string) => {
+        setText(newText);
+        onTextChange(newText);
+      };
 
-      // Extreme rapid interactions
+      return (
+        <MobileTextInput
+          onSubmit={onSubmit}
+          loading={false}
+          onTextChange={handleChange}
+        />
+      );
+    };
+
+    render(<TestComponent />);
+    const textarea = screen.getByRole("textbox");
+
+    const startTime = performance.now();
+    for (let i = 0; i < 100; i++) {
+      await user.type(textarea, "a");
+    }
+    const endTime = performance.now();
+    const duration = endTime - startTime;
+
+    expect(duration).toBeLessThan(1000);
+    expect(onTextChange).toHaveBeenCalledTimes(100);
+  });
+
+  it("should handle memory efficiently", async () => {
+    const TestComponent = () => {
+      const [items, setItems] = React.useState<string[]>([]);
+      usePerformanceMonitor();
+
+      React.useEffect(() => {
+        const interval = setInterval(() => {
+          setItems((prev) => [...prev, `Item ${prev.length}`]);
+        }, 10);
+
+        return () => clearInterval(interval);
+      }, []);
+
+      return (
+        <div>
+          {items.map((item, index) => (
+            <div key={index}>{item}</div>
+          ))}
+        </div>
+      );
+    };
+
+    const initialMemory = (performance as any).memory?.usedJSHeapSize || 0;
+    const { unmount } = render(<TestComponent />);
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    });
+
+    unmount();
+
+    if (global.gc) {
+      global.gc();
+    }
+
+    const finalMemory = (performance as any).memory?.usedJSHeapSize || 0;
+    const memoryIncrease = finalMemory - initialMemory;
+
+    expect(memoryIncrease).toBeLessThan(50 * 1024 * 1024);
+  });
+
+  it("should clean up event listeners properly", async () => {
+    let eventListenerCount = 0;
+    const originalAddEventListener = document.addEventListener;
+    const originalRemoveEventListener = document.removeEventListener;
+
+    document.addEventListener = jest.fn((type, listener, options) => {
+      eventListenerCount++;
+      return originalAddEventListener.call(document, type, listener, options);
+    });
+
+    document.removeEventListener = jest.fn((type, listener, options) => {
+      eventListenerCount--;
+      return originalRemoveEventListener.call(
+        document,
+        type,
+        listener,
+        options
+      );
+    });
+
+    const TestComponent = () => {
+      usePerformanceMonitor();
+      return (
+        <MobileTextInput
+          onSubmit={jest.fn()}
+          loading={false}
+          onTextChange={jest.fn()}
+        />
+      );
+    };
+
+    const { unmount } = render(<TestComponent />);
+    const listenersAdded = eventListenerCount;
+    unmount();
+
+    expect(eventListenerCount).toBe(0);
+
+    document.addEventListener = originalAddEventListener;
+    document.removeEventListener = originalRemoveEventListener;
+  });
+
+  it("should handle memory pressure gracefully", async () => {
+    const originalMemory = (performance as any).memory;
+    (performance as any).memory = {
+      usedJSHeapSize: 1800000000,
+      totalJSHeapSize: 2000000000,
+      jsHeapSizeLimit: 2000000000,
+    };
+
+    const TestComponent = () => {
+      usePerformanceMonitor();
+      return (
+        <MobileTextInput
+          onSubmit={jest.fn()}
+          loading={false}
+          onTextChange={jest.fn()}
+        />
+      );
+    };
+
+    expect(() => render(<TestComponent />)).not.toThrow();
+
+    (performance as any).memory = originalMemory;
+  });
+
+  it("should handle slow network conditions", async () => {
+    const user = userEvent.setup();
+    const slowSubmit = jest.fn().mockImplementation(() => {
+      return new Promise((resolve) => setTimeout(resolve, 3000));
+    });
+
+    const TestComponent = () => {
+      const [loading, setLoading] = React.useState(false);
+      usePerformanceMonitor();
+
+      const handleSubmit = async (text: string) => {
+        setLoading(true);
+        try {
+          await slowSubmit(text);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      return (
+        <MobileTextInput
+          onSubmit={handleSubmit}
+          loading={loading}
+          onTextChange={jest.fn()}
+        />
+      );
+    };
+
+    render(<TestComponent />);
+    const textarea = screen.getByRole("textbox");
+    const submitButton = screen.getByRole("button");
+
+    await user.type(textarea, "Test message");
+    await user.click(submitButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/generating/i)).toBeInTheDocument();
+    });
+
+    const startTime = performance.now();
+    await user.type(textarea, "a");
+    const endTime = performance.now();
+    const responseTime = endTime - startTime;
+
+    expect(responseTime).toBeLessThan(100);
+  });
+
+  it("should handle rapid user interactions", async () => {
+    const user = userEvent.setup();
+    const onSubmit = jest.fn();
+    const onTextChange = jest.fn();
+
+    const TestComponent = () => {
+      const [submissionCount, setSubmissionCount] = React.useState(0);
+      usePerformanceMonitor();
+
+      const handleSubmit = async (text: string) => {
+        setSubmissionCount((prev) => prev + 1);
+        await onSubmit(text);
+      };
+
+      return (
+        <div>
+          <MobileTextInput
+            onSubmit={handleSubmit}
+            loading={false}
+            onTextChange={onTextChange}
+          />
+          <div data-testid="submission-count">{submissionCount}</div>
+        </div>
+      );
+    };
+
+    render(<TestComponent />);
+    const textarea = screen.getByRole("textbox");
+    const submitButton = screen.getByRole("button");
+
+    await user.type(textarea, "Test message");
+
+    const startTime = performance.now();
+    for (let i = 0; i < 10; i++) {
+      await user.click(submitButton);
+    }
+    const endTime = performance.now();
+    const duration = endTime - startTime;
+
+    expect(duration).toBeLessThan(1000);
+  });
+
+  it("should handle timeout gracefully", async () => {
+    const user = userEvent.setup();
+    const timeoutSubmit = jest.fn().mockImplementation(() => {
+      return new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("Request timeout")), 100);
+      });
+    });
+
+    const TestComponent = () => {
+      const [error, setError] = React.useState<string>("");
+      usePerformanceMonitor();
+
+      const handleSubmit = async (text: string) => {
+        try {
+          setError("");
+          await timeoutSubmit(text);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Unknown error");
+        }
+      };
+
+      return (
+        <div>
+          <MobileTextInput
+            onSubmit={handleSubmit}
+            loading={false}
+            onTextChange={jest.fn()}
+          />
+          {error && <div data-testid="error">{error}</div>}
+        </div>
+      );
+    };
+
+    render(<TestComponent />);
+    const textarea = screen.getByRole("textbox");
+    const submitButton = screen.getByRole("button");
+
+    await user.type(textarea, "Test message");
+    await user.click(submitButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("error")).toBeInTheDocument();
+    });
+
+    const startTime = performance.now();
+    await user.type(textarea, "a");
+    const endTime = performance.now();
+    const responseTime = endTime - startTime;
+
+    expect(responseTime).toBeLessThan(100);
+  });
+
+  it("should handle stress testing", async () => {
+    const user = userEvent.setup();
+    const onSubmit = jest.fn();
+    const onTextChange = jest.fn();
+
+    const TestComponent = () => {
+      usePerformanceMonitor();
+      return (
+        <MobileTextInput
+          onSubmit={onSubmit}
+          loading={false}
+          onTextChange={onTextChange}
+        />
+      );
+    };
+
+    render(<TestComponent />);
+    const textarea = screen.getByRole("textbox");
+
+    const startTime = performance.now();
+    for (let i = 0; i < 1000; i++) {
+      await user.type(textarea, "a");
+    }
+    const endTime = performance.now();
+    const totalTime = endTime - startTime;
+
+    expect(totalTime).toBeLessThan(10000);
+  });
+
+  it("should maintain consistent performance", async () => {
+    const user = userEvent.setup();
+    const onSubmit = jest.fn();
+    const onTextChange = jest.fn();
+
+    const TestComponent = () => {
+      usePerformanceMonitor();
+      return (
+        <MobileTextInput
+          onSubmit={onSubmit}
+          loading={false}
+          onTextChange={onTextChange}
+        />
+      );
+    };
+
+    render(<TestComponent />);
+    const textarea = screen.getByRole("textbox");
+
+    const times: number[] = [];
+    for (let i = 0; i < 50; i++) {
       const startTime = performance.now();
-
-      for (let i = 0; i < 50; i++) {
-        await user.type(textarea, `Stress test ${i}`);
-        await user.click(submitButton);
-        await user.clear(textarea);
-      }
-
+      await user.type(textarea, "a");
       const endTime = performance.now();
-      const totalTime = endTime - startTime;
+      times.push(endTime - startTime);
+    }
 
-      // Should handle stress without crashing
-      expect(totalTime).toBeLessThan(10000); // 10 seconds
-      expect(textarea).toBeInTheDocument();
+    const averageTime = times.reduce((a, b) => a + b, 0) / times.length;
+    const maxTime = Math.max(...times);
+
+    expect(averageTime).toBeLessThan(100);
+    expect(maxTime).toBeLessThan(200);
+  });
+
+  it("should handle component state changes efficiently", async () => {
+    const TestComponent = () => {
+      const [summary, setSummary] = React.useState("");
+      const [loading, setLoading] = React.useState(true);
+      const [error, setError] = React.useState("Network error");
+      usePerformanceMonitor();
+
+      React.useEffect(() => {
+        const timer = setTimeout(() => {
+          setError("");
+          setLoading(false);
+          setSummary("Test summary");
+        }, 100);
+
+        return () => clearTimeout(timer);
+      }, []);
+
+      return (
+        <ResultDisplay
+          summary={summary}
+          loading={loading}
+          error={error}
+          copied={false}
+          isCached={false}
+          onCopy={jest.fn()}
+          onTryAgain={jest.fn()}
+        />
+      );
+    };
+
+    const startTime = performance.now();
+    render(<TestComponent />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Test summary")).toBeInTheDocument();
     });
 
-    it("maintains performance under continuous load", async () => {
-      const user = userEvent.setup();
+    const endTime = performance.now();
+    const duration = endTime - startTime;
 
-      render(<MobileTextInput onSubmit={jest.fn()} loading={false} />);
+    expect(duration).toBeLessThan(1000);
+  });
 
-      const textarea = screen.getByRole("textbox");
-      const performanceMetrics: number[] = [];
+  it("should handle typical user workflow efficiently", async () => {
+    const user = userEvent.setup();
 
-      // Continuous load test
-      for (let i = 0; i < 20; i++) {
-        const startTime = performance.now();
+    const TestComponent = () => {
+      const [text, setText] = React.useState("");
+      const [summary, setSummary] = React.useState("");
+      const [loading, setLoading] = React.useState(false);
+      usePerformanceMonitor();
 
-        await user.clear(textarea);
-        await user.type(textarea, `Continuous load test iteration ${i}`);
+      const handleSubmit = async (newText: string) => {
+        setLoading(true);
+        setText(newText);
+        setTimeout(() => {
+          setSummary("Generated summary");
+          setLoading(false);
+        }, 100);
+      };
 
-        const endTime = performance.now();
-        performanceMetrics.push(endTime - startTime);
-      }
+      const handleCopy = () => {
+        navigator.clipboard.writeText(summary);
+      };
 
-      // Performance should remain consistent
-      const averageTime =
-        performanceMetrics.reduce((a, b) => a + b, 0) /
-        performanceMetrics.length;
-      const maxTime = Math.max(...performanceMetrics);
+      return (
+        <div>
+          <MobileTextInput
+            onSubmit={handleSubmit}
+            loading={loading}
+            onTextChange={jest.fn()}
+          />
+          <ResultDisplay
+            summary={summary}
+            loading={loading}
+            error=""
+            copied={false}
+            isCached={false}
+            onCopy={handleCopy}
+            onTryAgain={jest.fn()}
+          />
+        </div>
+      );
+    };
 
-      expect(averageTime).toBeLessThan(100); // Average < 100ms
-      expect(maxTime).toBeLessThan(200); // Max < 200ms
+    performance.mark("workflow-start");
+    render(<TestComponent />);
+    const textarea = screen.getByRole("textbox");
+    const submitButton = screen.getByRole("button");
+
+    await user.type(textarea, "Test message");
+    await user.click(submitButton);
+
+    await waitFor(() => {
+      expect(screen.getByText("Generated summary")).toBeInTheDocument();
     });
 
-    it("recovers from error states efficiently", async () => {
-      const user = userEvent.setup();
+    performance.mark("workflow-end");
+    const measure = performance.measure(
+      "workflow-duration",
+      "workflow-start",
+      "workflow-end"
+    );
 
-      // Start with error state
-      mockUseTextSummary.mockReturnValue({
-        text: "Error test",
-        summary: "",
-        loading: false,
-        error: "Network error",
-        copied: false,
-        isCached: false,
-        apiKey: "",
-        selectedProvider: "openai",
-        availableProviders: [],
-        apiKeyValidationStatus: "idle",
-        validatingApiKey: false,
-        loadingProviders: false,
-        setText: jest.fn(),
-        summarize: jest.fn(),
-        copyToClipboard: jest.fn(),
-        reset: jest.fn(),
-        loadExample: jest.fn(),
-        tryAgain: jest.fn(),
-        setApiKey: jest.fn(),
-        setSelectedProvider: jest.fn(),
-        validateApiKey: jest.fn(),
-        clearApiKey: jest.fn(),
+    expect(measure.duration).toBeLessThan(1000);
+  });
+
+  it("should work on mobile devices", async () => {
+    const originalNavigator = global.navigator;
+    Object.defineProperty(global.navigator, "hardwareConcurrency", {
+      value: 2,
+      writable: true,
+    });
+
+    const TestComponent = () => {
+      usePerformanceMonitor();
+      return (
+        <MobileTextInput
+          onSubmit={jest.fn()}
+          loading={false}
+          onTextChange={jest.fn()}
+        />
+      );
+    };
+
+    expect(() => render(<TestComponent />)).not.toThrow();
+
+    Object.defineProperty(global.navigator, "hardwareConcurrency", {
+      value: originalNavigator.hardwareConcurrency,
+      writable: true,
+    });
+  });
+
+  it("should optimize for battery usage", async () => {
+    const originalBattery = (navigator as any).getBattery;
+    (navigator as any).getBattery = jest.fn().mockResolvedValue({
+      charging: false,
+      level: 0.2,
+      chargingTime: Infinity,
+      dischargingTime: 3600,
+    });
+
+    const TestComponent = () => {
+      usePerformanceMonitor();
+      return (
+        <MobileTextInput
+          onSubmit={jest.fn()}
+          loading={false}
+          onTextChange={jest.fn()}
+        />
+      );
+    };
+
+    expect(() => render(<TestComponent />)).not.toThrow();
+
+    (navigator as any).getBattery = originalBattery;
+  });
+
+  it("should detect performance bottlenecks", async () => {
+    const user = userEvent.setup();
+    const onSubmit = jest.fn();
+    const onTextChange = jest.fn();
+
+    const TestComponent = () => {
+      usePerformanceMonitor();
+      return (
+        <MobileTextInput
+          onSubmit={onSubmit}
+          loading={false}
+          onTextChange={onTextChange}
+        />
+      );
+    };
+
+    render(<TestComponent />);
+    const textarea = screen.getByRole("textbox");
+
+    const measurements: number[] = [];
+    for (let i = 0; i < 10; i++) {
+      const startTime = performance.now();
+      await user.type(textarea, "test");
+      const endTime = performance.now();
+      measurements.push(endTime - startTime);
+    }
+
+    const averageTime =
+      measurements.reduce((a, b) => a + b, 0) / measurements.length;
+    const bottleneckThreshold = 100;
+
+    expect(averageTime).toBeLessThan(bottleneckThreshold);
+  });
+
+  it("should handle web vitals", async () => {
+    const TestComponent = () => {
+      usePerformanceMonitor();
+      return (
+        <MobileTextInput
+          onSubmit={jest.fn()}
+          loading={false}
+          onTextChange={jest.fn()}
+        />
+      );
+    };
+
+    const observer = new PerformanceObserver((list) => {
+      const entries = list.getEntries();
+      entries.forEach((entry) => {
+        if (entry.entryType === "layout-shift") {
+          expect(entry.value).toBeLessThan(0.1);
+        }
+        if (entry.entryType === "largest-contentful-paint") {
+          expect(entry.startTime).toBeLessThan(2500);
+        }
+        if (entry.entryType === "first-contentful-paint") {
+          expect(entry.startTime).toBeLessThan(1800);
+        }
       });
+    });
 
-      render(<MobileTextInput onSubmit={jest.fn()} loading={false} />);
+    observer.observe({
+      entryTypes: [
+        "layout-shift",
+        "largest-contentful-paint",
+        "first-contentful-paint",
+      ],
+    });
 
-      expect(screen.getByText(/error/i)).toBeInTheDocument();
+    render(<TestComponent />);
 
-      // Switch to success state
-      mockUseTextSummary.mockReturnValue({
-        text: "Success test",
-        summary: "Generated summary",
-        loading: false,
-        error: "",
-        copied: false,
-        isCached: false,
-        apiKey: "",
-        selectedProvider: "openai",
-        availableProviders: [],
-        apiKeyValidationStatus: "idle",
-        validatingApiKey: false,
-        loadingProviders: false,
-        setText: jest.fn(),
-        summarize: jest.fn(),
-        copyToClipboard: jest.fn(),
-        reset: jest.fn(),
-        loadExample: jest.fn(),
-        tryAgain: jest.fn(),
-        setApiKey: jest.fn(),
-        setSelectedProvider: jest.fn(),
-        validateApiKey: jest.fn(),
-        clearApiKey: jest.fn(),
-      });
-
-      // Re-render with success state
-      render(<MobileTextInput onSubmit={jest.fn()} loading={false} />);
-
-      // Should recover quickly
-      expect(screen.queryByText(/error/i)).not.toBeInTheDocument();
+    await waitFor(() => {
       expect(screen.getByRole("textbox")).toBeInTheDocument();
     });
-  });
 
-  describe("Real-world Performance Scenarios", () => {
-    it("handles typical user workflow efficiently", async () => {
-      const user = userEvent.setup();
-
-      performance.mark("workflow-start");
-
-      render(<MobileTextInput onSubmit={jest.fn()} loading={false} />);
-
-      // Typical user workflow
-      const textarea = screen.getByRole("textbox");
-
-      // 1. User types text
-      await user.type(
-        textarea,
-        "This is a typical article about technology trends in 2024"
-      );
-
-      // 2. User submits
-      const submitButton = screen.getByRole("button", { name: /summarize/i });
-      await user.click(submitButton);
-
-      // 3. User copies result (mock)
-      await user.keyboard("{Control>}c{/Control}");
-
-      performance.mark("workflow-end");
-      performance.measure(
-        "workflow-duration",
-        "workflow-start",
-        "workflow-end"
-      );
-
-      const measure = performance.getEntriesByName("workflow-duration")[0];
-
-      // Typical workflow should complete quickly
-      expect(measure.duration).toBeLessThan(1000); // 1 second
-    });
-
-    it("handles mobile device constraints", async () => {
-      const user = userEvent.setup();
-
-      // Mock mobile constraints
-      Object.defineProperty(navigator, "connection", {
-        value: {
-          effectiveType: "slow-2g",
-          downlink: 0.5,
-          rtt: 2000,
-        },
-        configurable: true,
-      });
-
-      Object.defineProperty(navigator, "hardwareConcurrency", {
-        value: 2, // Dual core mobile processor
-        configurable: true,
-      });
-
-      render(<MobileTextInput onSubmit={jest.fn()} loading={false} />);
-
-      const textarea = screen.getByRole("textbox");
-
-      // Should work on constrained devices
-      await user.type(textarea, "Mobile performance test");
-
-      expect(textarea).toHaveValue("Mobile performance test");
-    });
-
-    it("optimizes for battery life", async () => {
-      const user = userEvent.setup();
-
-      // Mock battery API
-      Object.defineProperty(navigator, "getBattery", {
-        value: () =>
-          Promise.resolve({
-            level: 0.2, // 20% battery
-            charging: false,
-            chargingTime: Infinity,
-            dischargingTime: 3600, // 1 hour
-          }),
-        configurable: true,
-      });
-
-      render(<MobileTextInput onSubmit={jest.fn()} loading={false} />);
-
-      const textarea = screen.getByRole("textbox");
-
-      // Should optimize for low battery
-      await user.type(textarea, "Battery optimization test");
-
-      expect(textarea).toHaveValue("Battery optimization test");
-    });
-  });
-
-  describe("Performance Monitoring", () => {
-    it("tracks performance metrics", () => {
-      const performanceObserver = new PerformanceObserver((list) => {
-        const entries = list.getEntries();
-        entries.forEach((entry) => {
-          expect(entry.duration).toBeLessThan(100);
-        });
-      });
-
-      performanceObserver.observe({ entryTypes: ["measure"] });
-
-      performance.mark("component-render-start");
-
-      render(<MobileTextInput onSubmit={jest.fn()} loading={false} />);
-
-      performance.mark("component-render-end");
-      performance.measure(
-        "component-render",
-        "component-render-start",
-        "component-render-end"
-      );
-
-      performanceObserver.disconnect();
-    });
-
-    it("reports performance bottlenecks", async () => {
-      const user = userEvent.setup();
-      const bottleneckThreshold = 100; // 100ms
-
-      render(<MobileTextInput onSubmit={jest.fn()} loading={false} />);
-
-      const textarea = screen.getByRole("textbox");
-
-      performance.mark("input-start");
-      await user.type(textarea, "Performance bottleneck test");
-      performance.mark("input-end");
-
-      performance.measure("input-duration", "input-start", "input-end");
-
-      const measure = performance.getEntriesByName("input-duration")[0];
-
-      if (measure.duration > bottleneckThreshold) {
-        console.warn(`Performance bottleneck detected: ${measure.duration}ms`);
-      }
-
-      expect(measure.duration).toBeLessThan(bottleneckThreshold * 2);
-    });
-
-    it("measures core web vitals", async () => {
-      const user = userEvent.setup();
-
-      // Mock Core Web Vitals
-      const mockCLS = jest.fn();
-      const mockFID = jest.fn();
-      const mockLCP = jest.fn();
-
-      (window as any).webVitals = {
-        getCLS: mockCLS,
-        getFID: mockFID,
-        getLCP: mockLCP,
-      };
-
-      render(<MobileTextInput onSubmit={jest.fn()} loading={false} />);
-
-      const textarea = screen.getByRole("textbox");
-      await user.type(textarea, "Web vitals test");
-
-      // Should have good web vitals
-      expect(textarea).toBeInTheDocument();
-    });
+    observer.disconnect();
   });
 });

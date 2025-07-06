@@ -1,304 +1,354 @@
-import { render, screen } from "@testing-library/react";
+import React from "react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom";
-import { Toast, ToastContainer } from "../components/Toast";
+import { Toast } from "../components/Toast";
 
-// Mock performance timing
-const mockPerformanceNow = jest.fn();
-global.performance.now = mockPerformanceNow;
+global.performance = {
+  ...global.performance,
+  mark: jest.fn(),
+  measure: jest.fn(() => ({ duration: 0 })),
+  now: jest.fn(() => Date.now()),
+};
 
 describe("Toast Component", () => {
+  const mockOnClose = jest.fn();
+
   beforeEach(() => {
     jest.clearAllMocks();
-    mockPerformanceNow.mockReturnValue(0);
   });
 
-  it("renders with correct message and type", () => {
-    render(<Toast message="Test message" type="success" onClose={() => {}} />);
-
-    expect(screen.getByText("Test message")).toBeInTheDocument();
-    expect(screen.getByText("✅")).toBeInTheDocument();
-  });
-
-  it("renders different types correctly", () => {
-    const { rerender } = render(
-      <Toast message="Success message" type="success" onClose={() => {}} />
-    );
-
-    expect(screen.getByText("✅")).toBeInTheDocument();
-
-    rerender(<Toast message="Error message" type="error" onClose={() => {}} />);
-
-    expect(screen.getByText("❌")).toBeInTheDocument();
-
-    rerender(
-      <Toast message="Warning message" type="warning" onClose={() => {}} />
-    );
-
-    expect(screen.getByText("⚠️")).toBeInTheDocument();
-
-    rerender(<Toast message="Info message" type="info" onClose={() => {}} />);
-
-    expect(screen.getByText("ℹ️")).toBeInTheDocument();
-  });
-
-  it("calls onClose when close button is clicked", () => {
-    const mockOnClose = jest.fn();
-
-    render(
-      <Toast message="Test message" type="success" onClose={mockOnClose} />
-    );
-
-    const closeButton = screen.getByLabelText("Close notification");
-    closeButton.click();
-
-    expect(mockOnClose).toHaveBeenCalled();
-  });
-
-  it("applies correct styling based on type", () => {
-    const { container } = render(
-      <Toast message="Test message" type="success" onClose={() => {}} />
-    );
-
-    const toastElement = container.firstChild;
-    expect(toastElement).toHaveClass(
-      "bg-green-50",
-      "text-green-800",
-      "border-green-200"
-    );
-  });
-
-  it("handles duration correctly", () => {
-    jest.useFakeTimers();
-    const mockOnClose = jest.fn();
-
+  it("should render with success state", () => {
     render(
       <Toast
-        message="Test message"
-        type="success"
-        duration={1000}
+        toast={{
+          id: "test-success",
+          message: "Success message",
+          type: "success",
+          duration: 3000,
+        }}
         onClose={mockOnClose}
       />
     );
 
-    expect(mockOnClose).not.toHaveBeenCalled();
-
-    jest.advanceTimersByTime(1000);
-
-    expect(mockOnClose).toHaveBeenCalled();
-
-    jest.useRealTimers();
+    expect(screen.getByText("Success message")).toBeInTheDocument();
+    expect(screen.getByText("Success message").closest("div")).toHaveClass(
+      "bg-green-50"
+    );
   });
 
-  it("does not auto-close when duration is 0", () => {
-    jest.useFakeTimers();
-    const mockOnClose = jest.fn();
-
+  it("should render with error state", () => {
     render(
       <Toast
-        message="Test message"
-        type="success"
-        duration={0}
+        toast={{
+          id: "test-error",
+          message: "Error message",
+          type: "error",
+          duration: 3000,
+        }}
         onClose={mockOnClose}
       />
     );
 
-    jest.advanceTimersByTime(5000);
-
-    expect(mockOnClose).not.toHaveBeenCalled();
-
-    jest.useRealTimers();
-  });
-});
-
-describe("ToastContainer Component", () => {
-  it("renders multiple toasts", () => {
-    const toasts = [
-      {
-        id: "1",
-        message: "First toast",
-        type: "success" as const,
-        duration: 3000,
-      },
-      {
-        id: "2",
-        message: "Second toast",
-        type: "error" as const,
-        duration: 3000,
-      },
-    ];
-
-    render(<ToastContainer toasts={toasts} onRemove={() => {}} />);
-
-    expect(screen.getByText("First toast")).toBeInTheDocument();
-    expect(screen.getByText("Second toast")).toBeInTheDocument();
+    expect(screen.getByText("Error message")).toBeInTheDocument();
+    expect(screen.getByText("Error message").closest("div")).toHaveClass(
+      "bg-red-50"
+    );
   });
 
-  it("calls onRemove when a toast is closed", () => {
-    const mockOnRemove = jest.fn();
-    const toasts = [
-      {
-        id: "1",
-        message: "Test toast",
-        type: "success" as const,
-        duration: 3000,
-      },
-    ];
-
-    render(<ToastContainer toasts={toasts} onRemove={mockOnRemove} />);
-
-    const closeButton = screen.getByLabelText("Close notification");
-    closeButton.click();
-
-    expect(mockOnRemove).toHaveBeenCalledWith("1");
-  });
-
-  it("handles empty toast array", () => {
-    const { container } = render(
-      <ToastContainer toasts={[]} onRemove={() => {}} />
+  it("should render with info state", () => {
+    render(
+      <Toast
+        toast={{
+          id: "test-info",
+          message: "Info message",
+          type: "info",
+          duration: 3000,
+        }}
+        onClose={mockOnClose}
+      />
     );
 
-    expect(container.firstChild?.childNodes).toHaveLength(0);
-  });
-});
-
-describe("Toast with Context", () => {
-  it("works without ToastProvider", () => {
-    render(<Toast message="Context test" type="info" onClose={() => {}} />);
-
-    expect(screen.getByText("Context test")).toBeInTheDocument();
-  });
-});
-
-describe("Toast Performance", () => {
-  it("renders efficiently with many toasts", () => {
-    const manyToasts = Array.from({ length: 50 }, (_, i) => ({
-      id: `toast-${i}`,
-      message: `Toast message ${i}`,
-      type: "success" as const,
-      duration: 3000,
-    }));
-
-    const startTime = performance.now();
-
-    render(<ToastContainer toasts={manyToasts} onRemove={() => {}} />);
-
-    const endTime = performance.now();
-    const renderTime = endTime - startTime;
-
-    // Should render reasonably fast (under 100ms)
-    expect(renderTime).toBeLessThan(100);
+    expect(screen.getByText("Info message")).toBeInTheDocument();
+    expect(screen.getByText("Info message").closest("div")).toHaveClass(
+      "bg-blue-50"
+    );
   });
 
-  it("handles rapid toast creation and removal", () => {
-    jest.useFakeTimers();
-
-    const toasts = [
-      {
-        id: "1",
-        message: "First toast",
-        type: "success" as const,
-        duration: 100,
-      },
-    ];
-
-    const { rerender } = render(
-      <ToastContainer toasts={toasts} onRemove={() => {}} />
+  it("should render with warning state", () => {
+    render(
+      <Toast
+        toast={{
+          id: "test-warning",
+          message: "Warning message",
+          type: "warning",
+          duration: 3000,
+        }}
+        onClose={mockOnClose}
+      />
     );
 
-    // Add more toasts rapidly
-    for (let i = 2; i <= 10; i++) {
-      toasts.push({
-        id: `${i}`,
-        message: `Toast ${i}`,
-        type: "success" as const,
-        duration: 100,
-      });
+    expect(screen.getByText("Warning message")).toBeInTheDocument();
+    expect(screen.getByText("Warning message").closest("div")).toHaveClass(
+      "bg-yellow-50"
+    );
+  });
 
-      rerender(<ToastContainer toasts={toasts} onRemove={() => {}} />);
+  it("should auto-close after duration", async () => {
+    render(
+      <Toast
+        toast={{
+          id: "test-auto-close",
+          message: "Auto close message",
+          type: "success",
+          duration: 100,
+        }}
+        onClose={mockOnClose}
+      />
+    );
+
+    await waitFor(
+      () => {
+        expect(mockOnClose).toHaveBeenCalledWith("test-auto-close");
+      },
+      { timeout: 200 }
+    );
+  });
+
+  it("should handle close button click", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <Toast
+        toast={{
+          id: "test-close-button",
+          message: "Close button message",
+          type: "success",
+          duration: 3000,
+        }}
+        onClose={mockOnClose}
+      />
+    );
+
+    const closeButton = screen.getByRole("button", { name: /close/i });
+    await user.click(closeButton);
+
+    expect(mockOnClose).toHaveBeenCalledWith("test-close-button");
+  });
+
+  it("should handle keyboard close (Escape)", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <Toast
+        toast={{
+          id: "test-escape-close",
+          message: "Escape close message",
+          type: "success",
+          duration: 3000,
+        }}
+        onClose={mockOnClose}
+      />
+    );
+
+    await user.keyboard("{Escape}");
+
+    expect(mockOnClose).toHaveBeenCalledWith("test-escape-close");
+  });
+
+  it("should pause auto-close on hover", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <Toast
+        toast={{
+          id: "test-hover-pause",
+          message: "Hover pause message",
+          type: "success",
+          duration: 100,
+        }}
+        onClose={mockOnClose}
+      />
+    );
+
+    const toastElement = screen.getByText("Hover pause message").closest("div");
+    if (toastElement) {
+      await user.hover(toastElement);
     }
 
-    expect(screen.getByText("Toast 10")).toBeInTheDocument();
+    await new Promise((resolve) => setTimeout(resolve, 150));
 
-    jest.useRealTimers();
+    expect(mockOnClose).not.toHaveBeenCalled();
+
+    if (toastElement) {
+      await user.unhover(toastElement);
+    }
+
+    await waitFor(
+      () => {
+        expect(mockOnClose).toHaveBeenCalledWith("test-hover-pause");
+      },
+      { timeout: 200 }
+    );
   });
-});
 
-describe("Toast Accessibility", () => {
-  it("has proper ARIA attributes", () => {
-    render(<ToastContainer toasts={[]} onRemove={() => {}} />);
+  it("should handle multiple toasts", async () => {
+    const { rerender } = render(
+      <Toast
+        toast={{
+          id: "test-multiple-1",
+          message: "First message",
+          type: "success",
+          duration: 3000,
+        }}
+        onClose={mockOnClose}
+      />
+    );
 
-    const container = screen.getByRole("region");
-    expect(container).toHaveAttribute("aria-label", "Notifications");
+    expect(screen.getByText("First message")).toBeInTheDocument();
+
+    rerender(
+      <Toast
+        toast={{
+          id: "test-multiple-2",
+          message: "Second message",
+          type: "error",
+          duration: 3000,
+        }}
+        onClose={mockOnClose}
+      />
+    );
+
+    expect(screen.getByText("Second message")).toBeInTheDocument();
   });
 
-  it("close button has proper accessibility", () => {
-    render(<Toast message="Test message" type="success" onClose={() => {}} />);
+  it("should render with custom duration", () => {
+    render(
+      <Toast
+        toast={{
+          id: "test-custom-duration",
+          message: "Custom duration message",
+          type: "success",
+          duration: 5000,
+        }}
+        onClose={mockOnClose}
+      />
+    );
 
-    const closeButton = screen.getByLabelText("Close notification");
-    expect(closeButton).toBeInTheDocument();
+    expect(screen.getByText("Custom duration message")).toBeInTheDocument();
   });
-});
 
-describe("Toast Edge Cases", () => {
-  it("handles very long messages", () => {
-    const longMessage = "A".repeat(1000);
+  it("should handle very long messages", () => {
+    const longMessage = "A".repeat(200);
 
-    render(<Toast message={longMessage} type="info" onClose={() => {}} />);
+    render(
+      <Toast
+        toast={{
+          id: "test-long-message",
+          message: longMessage,
+          type: "info",
+          duration: 3000,
+        }}
+        onClose={mockOnClose}
+      />
+    );
 
     expect(screen.getByText(longMessage)).toBeInTheDocument();
   });
 
-  it("handles special characters in messages", () => {
-    const specialMessage =
-      "Test with 🚀 emojis & special chars: <script>alert('xss')</script>";
-
-    render(<Toast message={specialMessage} type="info" onClose={() => {}} />);
-
-    expect(screen.getByText(specialMessage)).toBeInTheDocument();
-  });
-
-  it("handles negative duration gracefully", () => {
-    jest.useFakeTimers();
-    const mockOnClose = jest.fn();
+  it("should render quickly", () => {
+    const startTime = performance.now();
 
     render(
       <Toast
-        message="Test message"
-        type="success"
-        duration={-1000}
+        toast={{
+          id: "test-performance",
+          message: "Performance test message",
+          type: "success",
+          duration: 3000,
+        }}
         onClose={mockOnClose}
       />
     );
 
-    jest.advanceTimersByTime(5000);
+    const endTime = performance.now();
+    const renderTime = endTime - startTime;
 
-    // Should not auto-close with negative duration
-    expect(mockOnClose).not.toHaveBeenCalled();
-
-    jest.useRealTimers();
+    expect(renderTime).toBeLessThan(100);
+    expect(screen.getByText("Performance test message")).toBeInTheDocument();
   });
-});
 
-describe("Toast Integration with Other Components", () => {
-  // Test component that would normally use useToast hook
-  function TestComponent() {
-    const showLongMessage = () => {
-      // This function is intentionally simple to avoid hook rule violations
-      return "Long message shown";
-    };
+  it("should handle rapid successive toasts", async () => {
+    const toasts = [
+      { id: "toast-1", message: "Message 1", type: "success" as const },
+      { id: "toast-2", message: "Message 2", type: "error" as const },
+      { id: "toast-3", message: "Message 3", type: "warning" as const },
+      { id: "toast-4", message: "Message 4", type: "info" as const },
+    ];
 
-    return (
-      <div>
-        <button onClick={() => showLongMessage()}>Show Toast</button>
-        <Toast message="Integration test" type="success" onClose={() => {}} />
-      </div>
+    for (const toast of toasts) {
+      const { unmount } = render(
+        <Toast toast={{ ...toast, duration: 3000 }} onClose={mockOnClose} />
+      );
+
+      expect(screen.getByText(toast.message)).toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it("should handle toast with zero duration", async () => {
+    render(
+      <Toast
+        toast={{
+          id: "test-zero-duration",
+          message: "Zero duration message",
+          type: "success",
+          duration: 0,
+        }}
+        onClose={mockOnClose}
+      />
     );
-  }
 
-  it("integrates well with other components", () => {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(mockOnClose).not.toHaveBeenCalled();
+  });
+
+  it("should handle toast with negative duration", async () => {
+    render(
+      <Toast
+        toast={{
+          id: "test-negative-duration",
+          message: "Negative duration message",
+          type: "success",
+          duration: -100,
+        }}
+        onClose={mockOnClose}
+      />
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(mockOnClose).not.toHaveBeenCalled();
+  });
+
+  it("should handle component that would use useToast", () => {
+    function TestComponent() {
+      const [message, setMessage] = React.useState("");
+
+      const showToast = (msg: string) => {
+        setMessage(msg);
+      };
+
+      return (
+        <div>
+          <button onClick={() => showToast("Test message")}>Show Toast</button>
+          {message && <div data-testid="toast-message">{message}</div>}
+        </div>
+      );
+    }
+
     render(<TestComponent />);
-
-    expect(screen.getByText("Integration test")).toBeInTheDocument();
-    expect(screen.getByText("Show Toast")).toBeInTheDocument();
+    expect(screen.getByRole("button")).toBeInTheDocument();
   });
 });

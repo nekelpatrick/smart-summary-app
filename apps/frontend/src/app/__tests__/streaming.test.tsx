@@ -1,13 +1,14 @@
+import React from "react";
 import { render, screen, waitFor, act } from "@testing-library/react";
+import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
 import { useTextSummary } from "../hooks/useTextSummary";
 import { streamingService } from "../services/streamingService";
 
 // Mock the streaming service
-jest.mock("../services/streamingService");
-const mockStreamingService = streamingService as jest.Mocked<
-  typeof streamingService
->;
+jest.mock("../services/streamingService", () => ({
+  createSummaryStream: jest.fn(),
+}));
 
 // Mock React hook
 jest.mock("../hooks/useTextSummary");
@@ -99,7 +100,7 @@ describe("Streaming Functionality", () => {
         },
       });
 
-      mockStreamingService.summarizeText.mockResolvedValue({
+      streamingService.summarizeText.mockResolvedValue({
         ok: true,
         body: mockStream,
       } as Response);
@@ -112,7 +113,7 @@ describe("Streaming Functionality", () => {
       await userEvent.type(input, "Test text for summarization");
       await userEvent.click(button);
 
-      expect(mockStreamingService.summarizeText).toHaveBeenCalledWith(
+      expect(streamingService.summarizeText).toHaveBeenCalledWith(
         "Test text for summarization",
         { maxLength: 200 }
       );
@@ -125,7 +126,7 @@ describe("Streaming Functionality", () => {
         },
       });
 
-      mockStreamingService.summarizeText.mockResolvedValue({
+      streamingService.summarizeText.mockResolvedValue({
         ok: true,
         body: mockStream,
       } as Response);
@@ -152,7 +153,7 @@ describe("Streaming Functionality", () => {
         },
       });
 
-      mockStreamingService.summarizeText.mockResolvedValue({
+      streamingService.summarizeText.mockResolvedValue({
         ok: true,
         body: mockStream,
       } as Response);
@@ -180,7 +181,7 @@ describe("Streaming Functionality", () => {
         },
       });
 
-      mockStreamingService.summarizeText.mockResolvedValue({
+      streamingService.summarizeText.mockResolvedValue({
         ok: true,
         body: mockStream,
       } as Response);
@@ -214,7 +215,7 @@ describe("Streaming Functionality", () => {
         },
       });
 
-      mockStreamingService.summarizeText.mockResolvedValue({
+      streamingService.summarizeText.mockResolvedValue({
         ok: true,
         body: mockStream,
       } as Response);
@@ -238,7 +239,7 @@ describe("Streaming Functionality", () => {
           },
         });
 
-      mockStreamingService.summarizeText
+      streamingService.summarizeText
         .mockResolvedValueOnce({
           ok: true,
           body: createMockStream("First summary"),
@@ -263,7 +264,7 @@ describe("Streaming Functionality", () => {
     it("handles network timeout", async () => {
       jest.useFakeTimers();
 
-      mockStreamingService.summarizeText.mockImplementation(
+      streamingService.summarizeText.mockImplementation(
         () =>
           new Promise((_, reject) => {
             setTimeout(() => reject(new Error("Request timeout")), 30000);
@@ -300,7 +301,7 @@ describe("Streaming Functionality", () => {
         },
       });
 
-      mockStreamingService.summarizeText.mockResolvedValue({
+      streamingService.summarizeText.mockResolvedValue({
         ok: true,
         body: mockStream,
       } as Response);
@@ -318,7 +319,7 @@ describe("Streaming Functionality", () => {
     });
 
     it("handles server errors (5xx)", async () => {
-      mockStreamingService.summarizeText.mockResolvedValue({
+      streamingService.summarizeText.mockResolvedValue({
         ok: false,
         status: 500,
         statusText: "Internal Server Error",
@@ -337,7 +338,7 @@ describe("Streaming Functionality", () => {
     });
 
     it("handles rate limiting (429)", async () => {
-      mockStreamingService.summarizeText.mockResolvedValue({
+      streamingService.summarizeText.mockResolvedValue({
         ok: false,
         status: 429,
         statusText: "Too Many Requests",
@@ -357,7 +358,7 @@ describe("Streaming Functionality", () => {
     });
 
     it("handles authentication errors (401)", async () => {
-      mockStreamingService.summarizeText.mockResolvedValue({
+      streamingService.summarizeText.mockResolvedValue({
         ok: false,
         status: 401,
         statusText: "Unauthorized",

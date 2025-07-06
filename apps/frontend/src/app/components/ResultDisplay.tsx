@@ -13,35 +13,42 @@ export function ResultDisplay({
 }: ResultDisplayProps) {
   const [progress, setProgress] = useState(0);
   const [wordCount, setWordCount] = useState(0);
-  const [isAnimatingIn, setIsAnimatingIn] = useState(false);
 
-  // Animate progress during loading
   useEffect(() => {
     if (loading) {
-      setProgress(0);
-      const interval = setInterval(() => {
+      const timer = setInterval(() => {
         setProgress((prev) => {
-          const increment = Math.random() * 15 + 5; // 5-20% increments
-          const newProgress = Math.min(prev + increment, 85); // Max 85% during loading
+          const increment = Math.random() * 15 + 5;
+          const newProgress = Math.min(prev + increment, 85);
           return newProgress;
         });
-      }, 200);
+      }, 800);
 
-      return () => clearInterval(interval);
+      return () => {
+        clearInterval(timer);
+        setProgress(100);
+      };
     } else {
       setProgress(100);
     }
   }, [loading]);
 
-  // Animate word count for streaming effect
   useEffect(() => {
-    if (summary) {
-      const words = summary.split(" ").length;
-      setWordCount(words);
-      setIsAnimatingIn(true);
+    if (summary && summary.split(" ").length > 0) {
+      const words = summary.split(" ");
+      let currentCount = 0;
 
-      const timer = setTimeout(() => setIsAnimatingIn(false), 300);
-      return () => clearTimeout(timer);
+      const timer = setInterval(() => {
+        currentCount += Math.floor(Math.random() * 3) + 1;
+        if (currentCount >= words.length) {
+          setWordCount(words.length);
+          clearInterval(timer);
+        } else {
+          setWordCount(currentCount);
+        }
+      }, 50);
+
+      return () => clearInterval(timer);
     }
   }, [summary]);
 
@@ -53,7 +60,6 @@ export function ResultDisplay({
           : "scale-95 opacity-0"
       }`}
     >
-      {/* Header with progress bar */}
       <div className="p-4 md:p-6 border-b border-gray-100">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
           <div className="flex items-center gap-3">
@@ -121,7 +127,6 @@ export function ResultDisplay({
           )}
         </div>
 
-        {/* Progress bar for loading */}
         {loading && (
           <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
             <div
@@ -134,7 +139,6 @@ export function ResultDisplay({
         )}
       </div>
 
-      {/* Content area */}
       <div className="p-4 md:p-6">
         {error && (
           <div className="mb-4 rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-700 animate-in slide-in-from-top duration-300">
@@ -184,17 +188,12 @@ export function ResultDisplay({
 
         {summary && (
           <div
-            className={`rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-4 md:p-6 transition-all duration-300 ${
-              isAnimatingIn
-                ? "animate-in slide-in-from-bottom duration-500"
-                : ""
-            }`}
+            className={`rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-4 md:p-6 transition-all duration-300`}
           >
             <div className="prose prose-sm max-w-none">
               <p className="leading-relaxed text-gray-700 mb-0">{summary}</p>
             </div>
 
-            {/* Summary stats */}
             <div className="mt-4 pt-4 border-t border-gray-200 flex items-center justify-between text-xs text-gray-500">
               <span>Generated {isCached ? "from cache" : "by AI"}</span>
               <span>{new Date().toLocaleTimeString()}</span>
@@ -202,9 +201,8 @@ export function ResultDisplay({
           </div>
         )}
 
-        {/* Empty state when no content */}
         {!loading && !summary && !error && (
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-12">
             <div className="text-4xl mb-2">📝</div>
             <p>Your summary will appear here</p>
           </div>

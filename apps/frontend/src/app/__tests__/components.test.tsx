@@ -4,7 +4,6 @@ import userEvent from "@testing-library/user-event";
 import { ApiKeyInput } from "../components";
 import { LLMProvider, ProviderStatus } from "../types";
 
-// Mock the main component to extract individual components
 jest.mock("../page", () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const React = require("react");
