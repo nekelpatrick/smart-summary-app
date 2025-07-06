@@ -197,7 +197,7 @@ describe("Performance Tests", () => {
     const onTextChange = jest.fn();
 
     const TestComponent = () => {
-      const [text, setText] = React.useState("");
+      const [, setText] = React.useState("");
       usePerformanceMonitor();
 
       const handleChange = (newText: string) => {
@@ -250,7 +250,12 @@ describe("Performance Tests", () => {
       );
     };
 
-    const initialMemory = (performance as any).memory?.usedJSHeapSize || 0;
+    const initialMemory =
+      (
+        performance as typeof performance & {
+          memory?: { usedJSHeapSize: number };
+        }
+      ).memory?.usedJSHeapSize || 0;
     const { unmount } = render(<TestComponent />);
 
     await act(async () => {
@@ -263,7 +268,12 @@ describe("Performance Tests", () => {
       global.gc();
     }
 
-    const finalMemory = (performance as any).memory?.usedJSHeapSize || 0;
+    const finalMemory =
+      (
+        performance as typeof performance & {
+          memory?: { usedJSHeapSize: number };
+        }
+      ).memory?.usedJSHeapSize || 0;
     const memoryIncrease = finalMemory - initialMemory;
 
     expect(memoryIncrease).toBeLessThan(50 * 1024 * 1024);
@@ -301,7 +311,6 @@ describe("Performance Tests", () => {
     };
 
     const { unmount } = render(<TestComponent />);
-    const listenersAdded = eventListenerCount;
     unmount();
 
     expect(eventListenerCount).toBe(0);
@@ -311,8 +320,16 @@ describe("Performance Tests", () => {
   });
 
   it("should handle memory pressure gracefully", async () => {
-    const originalMemory = (performance as any).memory;
-    (performance as any).memory = {
+    const originalMemory = (
+      performance as typeof performance & {
+        memory?: { usedJSHeapSize: number };
+      }
+    ).memory;
+    (
+      performance as typeof performance & {
+        memory?: { usedJSHeapSize: number };
+      }
+    ).memory = {
       usedJSHeapSize: 1800000000,
       totalJSHeapSize: 2000000000,
       jsHeapSizeLimit: 2000000000,
@@ -331,7 +348,11 @@ describe("Performance Tests", () => {
 
     expect(() => render(<TestComponent />)).not.toThrow();
 
-    (performance as any).memory = originalMemory;
+    (
+      performance as typeof performance & {
+        memory?: { usedJSHeapSize: number };
+      }
+    ).memory = originalMemory;
   });
 
   it("should handle slow network conditions", async () => {

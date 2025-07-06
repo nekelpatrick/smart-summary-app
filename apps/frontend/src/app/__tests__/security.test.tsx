@@ -2,8 +2,6 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom";
-import Home from "../page";
-import { apiService } from "../services/apiService";
 import { MobileTextInput, ApiKeyInput } from "../components";
 import { LLMProvider, ProviderStatus } from "../types";
 
@@ -262,7 +260,6 @@ describe("Security Tests", () => {
     });
 
     it("prevents API key exposure in error messages", async () => {
-      const user = userEvent.setup();
       const mockProps = {
         apiKey: "sk-secret-key-12345",
         selectedProvider: LLMProvider.OPENAI,
@@ -296,7 +293,9 @@ describe("Security Tests", () => {
       }).not.toThrow();
 
       // Should not execute inline scripts
-      expect((window as any).malicious).toBeUndefined();
+      expect(
+        (window as typeof window & { malicious?: boolean }).malicious
+      ).toBeUndefined();
     });
 
     it("prevents eval() usage", () => {

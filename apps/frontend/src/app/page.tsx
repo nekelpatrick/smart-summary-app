@@ -207,12 +207,14 @@ function Home(): React.ReactElement {
                     />
                   )}
 
-                  <div className="flex justify-center">
-                    <MobileTextInput
-                      onSubmit={handleSummarize}
-                      loading={loading}
-                    />
-                  </div>
+                  {!text && (
+                    <div className="flex justify-center">
+                      <MobileTextInput
+                        onSubmit={handleSummarize}
+                        loading={loading}
+                      />
+                    </div>
+                  )}
 
                   <div ref={resultDisplayRef}>
                     <ResultDisplay

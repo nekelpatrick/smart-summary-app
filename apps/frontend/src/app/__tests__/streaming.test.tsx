@@ -477,8 +477,24 @@ describe("Streaming Functionality", () => {
   describe("Memory and Performance Edge Cases", () => {
     it("handles memory pressure during large text processing", async () => {
       // Simulate memory pressure
-      const originalMemory = (performance as any).memory;
-      (performance as any).memory = {
+      const originalMemory = (
+        performance as typeof performance & {
+          memory?: {
+            usedJSHeapSize: number;
+            totalJSHeapSize: number;
+            jsHeapSizeLimit: number;
+          };
+        }
+      ).memory;
+      (
+        performance as typeof performance & {
+          memory?: {
+            usedJSHeapSize: number;
+            totalJSHeapSize: number;
+            jsHeapSizeLimit: number;
+          };
+        }
+      ).memory = {
         usedJSHeapSize: 1000000000, // 1GB
         totalJSHeapSize: 1100000000,
         jsHeapSizeLimit: 1200000000,
@@ -496,7 +512,15 @@ describe("Streaming Functionality", () => {
       );
 
       // Restore original memory object
-      (performance as any).memory = originalMemory;
+      (
+        performance as typeof performance & {
+          memory?: {
+            usedJSHeapSize: number;
+            totalJSHeapSize: number;
+            jsHeapSizeLimit: number;
+          };
+        }
+      ).memory = originalMemory;
     });
 
     it("handles rapid successive requests", async () => {
@@ -538,7 +562,9 @@ describe("Streaming Functionality", () => {
     it("handles browsers without ReadableStream support", async () => {
       // Mock browser without ReadableStream
       const originalReadableStream = global.ReadableStream;
-      delete (global as any).ReadableStream;
+      delete (
+        global as typeof global & { ReadableStream?: typeof ReadableStream }
+      ).ReadableStream;
 
       mockUseTextSummary.mockReturnValue({
         ...defaultHookReturn,
@@ -562,7 +588,7 @@ describe("Streaming Functionality", () => {
         constructor() {
           throw new Error("WebSocket not supported");
         }
-      } as any;
+      } as typeof WebSocket;
 
       mockUseTextSummary.mockReturnValue({
         ...defaultHookReturn,
@@ -636,7 +662,9 @@ describe("Streaming Functionality", () => {
         abort: jest.fn(),
         signal: { aborted: false },
       };
-      global.AbortController = jest.fn(() => mockAbortController) as any;
+      global.AbortController = jest.fn(
+        () => mockAbortController
+      ) as jest.MockedClass<typeof AbortController>;
 
       const { unmount } = render(<TestStreamingComponent />);
 
@@ -656,7 +684,9 @@ describe("Streaming Functionality", () => {
         abort: jest.fn(),
         signal: { aborted: false },
       };
-      global.AbortController = jest.fn(() => mockAbortController) as any;
+      global.AbortController = jest.fn(
+        () => mockAbortController
+      ) as jest.MockedClass<typeof AbortController>;
 
       render(<TestStreamingComponent />);
 

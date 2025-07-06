@@ -5,4 +5,4 @@ export { MobileTextInput } from "./MobileTextInput";
 export { ErrorBoundary } from "./ErrorBoundary";
 export { Spinner } from "./Spinner";
 export { default as ApiKeyInput } from "./ApiKeyInput";
-export { Toast, ToastContainer } from "./Toast"; 
+export { Toast, ToastContainer } from "./Toast";

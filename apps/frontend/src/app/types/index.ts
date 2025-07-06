@@ -53,7 +53,7 @@ export interface ApiKeyValidationResponse {
   provider: string;
 }
 
-export interface ApiError {
+export interface ApiErrorResponse {
   detail: string;
   status?: number;
 }
@@ -270,15 +270,11 @@ export class ApiValidationError extends Error {
   }
 }
 
-
 export function isValidSummaryResponse(data: unknown): data is SummaryResponse {
   return (
     typeof data === "object" &&
     data !== null &&
-    typeof (data as SummaryResponse).summary === "string" &&
-    typeof (data as SummaryResponse).originalLength === "number" &&
-    typeof (data as SummaryResponse).summaryLength === "number" &&
-    isValidLLMProvider((data as SummaryResponse).provider)
+    typeof (data as SummaryResponse).summary === "string"
   );
 }
 
@@ -307,9 +303,8 @@ export function isValidProviderStatus(value: unknown): value is ProviderStatus {
 export function isValidApiKeyValidationStatus(
   value: unknown
 ): value is ApiKeyValidationStatus {
-  return Object.values(ApiKeyValidationStatus).includes(
-    value as ApiKeyValidationStatus
-  );
+  const validStatuses: ApiKeyValidationStatus[] = ['idle', 'valid', 'invalid', 'error'];
+  return validStatuses.includes(value as ApiKeyValidationStatus);
 }
 
 export function isApiError(error: unknown): error is ApiError {

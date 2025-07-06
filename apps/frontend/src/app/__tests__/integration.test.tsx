@@ -10,11 +10,17 @@ jest.mock("../services/apiService");
 
 // Mock intersection observer for better test stability
 global.IntersectionObserver = class IntersectionObserver {
+  root = null;
+  rootMargin = "";
+  thresholds = [];
   constructor() {}
   observe() {}
   unobserve() {}
   disconnect() {}
-};
+  takeRecords() {
+    return [];
+  }
+} as unknown as typeof IntersectionObserver;
 
 // Mock ResizeObserver
 global.ResizeObserver = class ResizeObserver {
@@ -22,7 +28,7 @@ global.ResizeObserver = class ResizeObserver {
   observe() {}
   unobserve() {}
   disconnect() {}
-};
+} as unknown as typeof ResizeObserver;
 
 // Mock clipboard API
 Object.assign(navigator, {
@@ -32,7 +38,15 @@ Object.assign(navigator, {
   },
 });
 
-// Mock performance API
+// Mock performance API with memory
+interface MockPerformance extends Performance {
+  memory: {
+    usedJSHeapSize: number;
+    totalJSHeapSize: number;
+    jsHeapSizeLimit: number;
+  };
+}
+
 Object.defineProperty(window, "performance", {
   value: {
     ...window.performance,
@@ -41,7 +55,7 @@ Object.defineProperty(window, "performance", {
       totalJSHeapSize: 100000000,
       jsHeapSizeLimit: 200000000,
     },
-  },
+  } as MockPerformance,
 });
 
 describe("Integration Tests", () => {
@@ -279,8 +293,9 @@ describe("Integration Tests", () => {
       }
 
       // Should not exceed memory limits
-      expect(performance.memory.usedJSHeapSize).toBeLessThan(
-        performance.memory.jsHeapSizeLimit * 0.8
+      const perf = performance as MockPerformance;
+      expect(perf.memory.usedJSHeapSize).toBeLessThan(
+        perf.memory.jsHeapSizeLimit * 0.8
       );
     });
 
@@ -403,7 +418,10 @@ describe("Integration Tests", () => {
       });
 
       // Simulate coming back online
-      navigator.onLine = true;
+      Object.defineProperty(navigator, "onLine", {
+        writable: true,
+        value: true,
+      });
       window.dispatchEvent(new Event("online"));
 
       // Should retry automatically or show retry option
@@ -521,12 +539,16 @@ describe("Integration Tests", () => {
       const user = userEvent.setup();
 
       // Mock virtual keyboard
+      const mockViewport = {
+        height: 667,
+        addEventListener: jest.fn(),
+        removeEventListener: jest.fn(),
+        dispatchEvent: jest.fn(),
+      };
+
       Object.defineProperty(window, "visualViewport", {
-        value: {
-          height: 667,
-          addEventListener: jest.fn(),
-          removeEventListener: jest.fn(),
-        },
+        value: mockViewport,
+        writable: true,
       });
 
       render(<Home />);
@@ -535,8 +557,8 @@ describe("Integration Tests", () => {
       await user.click(textarea);
 
       // Simulate keyboard opening (viewport height change)
-      window.visualViewport.height = 400;
-      window.visualViewport.dispatchEvent?.(new Event("resize"));
+      mockViewport.height = 400;
+      mockViewport.dispatchEvent(new Event("resize"));
 
       // Layout should adapt
       expect(textarea).toBeVisible();
@@ -608,7 +630,8 @@ describe("Integration Tests", () => {
 
       // Mock analytics
       const mockAnalytics = jest.fn();
-      (window as any).gtag = mockAnalytics;
+      (window as typeof window & { gtag?: typeof mockAnalytics }).gtag =
+        mockAnalytics;
 
       const exampleButton = screen.getByRole("button", {
         name: /try example/i,

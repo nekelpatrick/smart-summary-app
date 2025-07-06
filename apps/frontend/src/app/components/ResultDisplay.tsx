@@ -65,16 +65,16 @@ export function ResultDisplay({
 
   return (
     <div
-      className={`rounded-lg bg-white shadow-lg transition-all duration-500 transform ${
+      className={`rounded-lg bg-white shadow-md transition-all duration-500 transform ${
         loading || summary || error
           ? "scale-100 opacity-100 translate-y-0"
           : "scale-95 opacity-0 translate-y-4"
       } ${loading ? "ring-2 ring-blue-200 ring-opacity-50" : ""}`}
     >
-      <div className="p-4 md:p-6 border-b border-gray-100">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
-          <div className="flex items-center gap-3">
-            <h2 className="text-lg md:text-xl font-semibold text-gray-700 flex items-center gap-2">
+      <div className="p-3 md:p-4 border-b border-gray-100">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
+          <div className="flex items-center gap-2">
+            <h2 className="text-base md:text-lg font-semibold text-gray-700 flex items-center gap-2">
               📝 Summary
               {loading && (
                 <span className="text-xs text-blue-600 animate-pulse font-medium">
@@ -99,26 +99,26 @@ export function ResultDisplay({
               <button
                 onClick={onTryAgain}
                 disabled={loading}
-                className="group relative rounded-lg bg-gray-100 px-4 py-2 min-h-[44px] text-sm font-medium text-gray-700 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 active:scale-95"
+                className="group relative rounded-lg bg-gray-100 px-3 py-1.5 min-h-[36px] text-xs font-medium text-gray-700 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 active:scale-95"
                 aria-label="Generate a new summary"
               >
-                <span className="flex items-center gap-2">🔄 Try Again</span>
+                <span className="flex items-center gap-1.5">🔄 Try Again</span>
               </button>
               <button
                 onClick={onCopy}
-                className={`group relative rounded-lg px-4 py-2 min-h-[44px] text-sm font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                className={`group relative rounded-lg px-3 py-1.5 min-h-[36px] text-xs font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
                   copied
                     ? "bg-green-100 text-green-800 border-green-200 focus:ring-green-500"
-                    : "bg-blue-500 text-white hover:bg-blue-600 focus:ring-blue-500 shadow-lg shadow-blue-500/25"
+                    : "bg-blue-500 text-white hover:bg-blue-600 focus:ring-blue-500 shadow-md shadow-blue-500/25"
                 }`}
                 aria-label={
                   copied ? "Copied to clipboard" : "Copy summary to clipboard"
                 }
               >
                 {copied ? (
-                  <span className="flex items-center gap-2 animate-in fade-in duration-200">
+                  <span className="flex items-center gap-1.5 animate-in fade-in duration-200">
                     <svg
-                      className="w-4 h-4"
+                      className="w-3 h-3"
                       fill="currentColor"
                       viewBox="0 0 20 20"
                     >
@@ -131,7 +131,7 @@ export function ResultDisplay({
                     Copied!
                   </span>
                 ) : (
-                  <span className="flex items-center gap-2">📋 Copy</span>
+                  <span className="flex items-center gap-1.5">📋 Copy</span>
                 )}
               </button>
             </div>
@@ -139,8 +139,8 @@ export function ResultDisplay({
         </div>
 
         {loading && (
-          <div className="space-y-3">
-            <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+          <div className="space-y-2">
+            <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
               <div
                 className="h-full bg-gradient-to-r from-blue-400 to-purple-500 rounded-full transition-all duration-300 ease-out relative overflow-hidden"
                 style={{ width: `${progress}%` }}
@@ -148,7 +148,7 @@ export function ResultDisplay({
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-pulse"></div>
               </div>
             </div>
-            <div className="flex items-center justify-center gap-2 text-sm text-blue-600">
+            <div className="flex items-center justify-center gap-2 text-xs text-blue-600">
               <div className="flex items-center gap-1">
                 <span
                   className="animate-bounce text-blue-400"
@@ -175,10 +175,10 @@ export function ResultDisplay({
         )}
       </div>
 
-      <div className="p-4 md:p-6">
+      <div className="p-3 md:p-4">
         {error && (
-          <div className="mb-4 rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-700 animate-in slide-in-from-top duration-300">
-            <div className="flex items-start gap-3">
+          <div className="mb-3 rounded-lg bg-red-50 border border-red-200 p-3 text-xs text-red-700 animate-in slide-in-from-top duration-300">
+            <div className="flex items-start gap-2">
               <span className="text-red-500 mt-0.5">⚠️</span>
               <div>
                 <p className="font-medium">Something went wrong</p>
@@ -189,30 +189,23 @@ export function ResultDisplay({
         )}
 
         {loading && (
-          <div className="flex flex-col items-center justify-center py-8 space-y-4">
-            <Spinner size={40} className="text-blue-500" />
-            <div className="text-center space-y-2">
-              <p className="text-gray-700 font-medium text-lg">
+          <div className="flex flex-col items-center justify-center py-6 space-y-3">
+            <Spinner size={32} className="text-blue-500" />
+            <div className="text-center space-y-1">
+              <p className="text-gray-700 font-medium">
                 Creating your summary...
               </p>
-              <p className="text-sm text-gray-500">
+              <p className="text-xs text-gray-500">
                 Using AI to extract key insights
               </p>
             </div>
           </div>
         )}
 
-        {summary && (
-          <div
-            className={`rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-4 md:p-6 transition-all duration-500 animate-in fade-in slide-in-from-bottom`}
-          >
-            <div className="prose prose-sm max-w-none">
-              <p className="leading-relaxed text-gray-700 mb-0">{summary}</p>
-            </div>
-
-            <div className="mt-4 pt-4 border-t border-gray-200 flex items-center justify-between text-xs text-gray-500">
-              <span>Generated {isCached ? "from cache" : "by AI"}</span>
-              <span>{new Date().toLocaleTimeString()}</span>
+        {summary && !loading && (
+          <div className="prose prose-sm max-w-none">
+            <div className="text-gray-800 leading-relaxed whitespace-pre-wrap">
+              {summary}
             </div>
           </div>
         )}
