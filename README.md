@@ -14,8 +14,6 @@ The whole thing started as a coding challenge, but honestly, I've been using it 
 
 ## How It Actually Works
 
-<img src="public/diagram.png" alt="landing page screenshot" style="width:65vw;"/>
-
 The setup is pretty straightforward:
 
 - **Frontend**: Next.js 15 with React, TypeScript, and Tailwind CSS
@@ -169,6 +167,8 @@ docker-compose up
 The Docker setup needs some love. Works locally but the networking gets funky in different environments.
 
 ## Architecture
+
+<img src="public/diagram.png" alt="landing page screenshot" style="width:65vw;"/>
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
