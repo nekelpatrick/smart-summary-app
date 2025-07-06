@@ -105,7 +105,7 @@ class ApiService {
   }
 
   private createError(status: number, message: string): ApiError {
-    return new ApiError(message, status);
+    return new ApiError(message, status, "API_ERROR");
   }
 
   private validateApiKeyResponse(data: unknown): ApiKeyValidationResponse {
@@ -117,7 +117,7 @@ class ApiService {
       valid: data.valid, 
       message: data.message, 
       provider: data.provider 
-    };
+    } as ApiKeyValidationResponse;
   }
 
   private validateProvidersResponse(data: unknown): ProvidersListResponse {
@@ -138,7 +138,7 @@ class ApiService {
     return { 
       providers, 
       default_provider: data.default_provider 
-    };
+    } as ProvidersListResponse;
   }
 
   private validateExampleResponse(data: unknown): ExampleResponse {
@@ -146,7 +146,7 @@ class ApiService {
       throw new ApiValidationError("Invalid example response format");
     }
 
-    return { text: data.text };
+    return { text: data.text } as ExampleResponse;
   }
 }
 
