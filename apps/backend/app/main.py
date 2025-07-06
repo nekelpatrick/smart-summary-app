@@ -4,7 +4,7 @@ from fastapi.responses import StreamingResponse
 import os
 from dotenv import load_dotenv
 
-from .models import TextRequest, SummaryResponse
+from .models import TextRequest, SummaryResponse, ApiKeyValidationRequest, ApiKeyValidationResponse
 from .services.llm_service import LLMService
 
 load_dotenv()
@@ -32,6 +32,21 @@ async def health():
     return {"status": "healthy"}
 
 
+@app.post("/validate-api-key", response_model=ApiKeyValidationResponse)
+async def validate_api_key(request: ApiKeyValidationRequest):
+    """Validate an OpenAI API key"""
+    try:
+        is_valid, message = await llm.validate_api_key(request.api_key)
+        return ApiKeyValidationResponse(
+            valid=is_valid,
+            message=message,
+            provider="openai"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"API key validation failed: {str(e)}")
+
+
 @app.get("/example")
 async def example():
     try:
@@ -50,7 +65,7 @@ async def example():
 @app.post("/summarize", response_model=SummaryResponse)
 async def summarize(request: TextRequest):
     try:
-        summary = await llm.summarize(request.text, request.max_length)
+        summary = await llm.summarize(request.text, request.max_length, request.api_key)
         return SummaryResponse(summary=summary)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -60,7 +75,7 @@ async def summarize(request: TextRequest):
 async def summarize_stream(request: TextRequest):
     try:
         async def generate():
-            async for chunk in llm.summarize_stream(request.text, request.max_length):
+            async for chunk in llm.summarize_stream(request.text, request.max_length, request.api_key):
                 yield f"data: {chunk}\n\n"
             yield "data: [DONE]\n\n"
 

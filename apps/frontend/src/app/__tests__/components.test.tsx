@@ -1,10 +1,12 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { ApiKeyInput } from "../components";
 
 // Mock the main component to extract individual components
 jest.mock("../page", () => {
-  const React = require("react"); // eslint-disable-line @typescript-eslint/no-require-imports
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const React = require("react");
 
   const Spinner = ({
     size = 24,
@@ -205,12 +207,8 @@ jest.mock("../page", () => {
   };
 });
 
-const {
-  Spinner,
-  Instructions,
-  TextDisplay,
-  ResultDisplay,
-} = require("../page");
+const { Spinner, Instructions, TextDisplay, ResultDisplay } =
+  jest.requireMock("../page");
 
 describe("Spinner Component", () => {
   it("renders with default props", () => {
@@ -410,5 +408,202 @@ describe("ResultDisplay Component", () => {
   it("does not render copy button when no summary", () => {
     render(<ResultDisplay {...defaultProps} />);
     expect(screen.queryByText("Copy")).not.toBeInTheDocument();
+  });
+});
+
+describe("ApiKeyInput Component", () => {
+  const mockOnApiKeyChange = jest.fn();
+  const mockOnValidate = jest.fn();
+  const mockOnClear = jest.fn();
+
+  const defaultProps = {
+    apiKey: "",
+    onApiKeyChange: mockOnApiKeyChange,
+    validating: false,
+    validationStatus: "idle" as const,
+    onValidate: mockOnValidate,
+    onClear: mockOnClear,
+  };
+
+  beforeEach(() => {
+    mockOnApiKeyChange.mockClear();
+    mockOnValidate.mockClear();
+    mockOnClear.mockClear();
+  });
+
+  it("renders with default props", () => {
+    render(<ApiKeyInput {...defaultProps} />);
+
+    expect(screen.getByText("OpenAI API Key (Optional)")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("sk-...")).toBeInTheDocument();
+    expect(screen.getByText("Show")).toBeInTheDocument();
+  });
+
+  it("renders input field as password type by default", () => {
+    render(<ApiKeyInput {...defaultProps} />);
+
+    const input = screen.getByPlaceholderText("sk-...");
+    expect(input).toHaveAttribute("type", "password");
+  });
+
+  it("toggles input type between password and text", async () => {
+    const user = userEvent.setup();
+    render(<ApiKeyInput {...defaultProps} />);
+
+    const input = screen.getByPlaceholderText("sk-...");
+    const toggleButton = screen.getByText("Show");
+
+    expect(input).toHaveAttribute("type", "password");
+
+    await user.click(toggleButton);
+    expect(input).toHaveAttribute("type", "text");
+    expect(screen.getByText("Hide")).toBeInTheDocument();
+
+    await user.click(screen.getByText("Hide"));
+    expect(input).toHaveAttribute("type", "password");
+    expect(screen.getByText("Show")).toBeInTheDocument();
+  });
+
+  it("calls onApiKeyChange when input value changes", async () => {
+    const user = userEvent.setup();
+    render(<ApiKeyInput {...defaultProps} />);
+
+    const input = screen.getByPlaceholderText("sk-...");
+    await user.type(input, "sk-test-key");
+
+    expect(mockOnApiKeyChange).toHaveBeenCalledWith("sk-test-key");
+  });
+
+  it("displays validation icon for valid status", () => {
+    render(<ApiKeyInput {...defaultProps} validationStatus="valid" />);
+    expect(screen.getByText("✓")).toBeInTheDocument();
+    expect(screen.getByText("API key is valid")).toBeInTheDocument();
+  });
+
+  it("displays validation icon for invalid status", () => {
+    render(<ApiKeyInput {...defaultProps} validationStatus="invalid" />);
+    expect(screen.getByText("✗")).toBeInTheDocument();
+    expect(screen.getByText("Invalid API key")).toBeInTheDocument();
+  });
+
+  it("displays validation icon for error status", () => {
+    render(<ApiKeyInput {...defaultProps} validationStatus="error" />);
+    expect(screen.getByText("!")).toBeInTheDocument();
+    expect(screen.getByText("Validation failed")).toBeInTheDocument();
+  });
+
+  it("shows validate button when API key is provided", () => {
+    render(<ApiKeyInput {...defaultProps} apiKey="sk-test-key" />);
+    expect(screen.getByText("Validate")).toBeInTheDocument();
+  });
+
+  it("calls onValidate when validate button is clicked", async () => {
+    const user = userEvent.setup();
+    render(<ApiKeyInput {...defaultProps} apiKey="sk-test-key" />);
+
+    const validateButton = screen.getByText("Validate");
+    await user.click(validateButton);
+
+    expect(mockOnValidate).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows validating state", () => {
+    render(
+      <ApiKeyInput {...defaultProps} apiKey="sk-test-key" validating={true} />
+    );
+    expect(screen.getByText("Validating...")).toBeInTheDocument();
+  });
+
+  it("disables input when validating", () => {
+    render(<ApiKeyInput {...defaultProps} validating={true} />);
+
+    const input = screen.getByPlaceholderText("sk-...");
+    expect(input).toBeDisabled();
+  });
+
+  it("disables validate button when validating", () => {
+    render(
+      <ApiKeyInput {...defaultProps} apiKey="sk-test-key" validating={true} />
+    );
+
+    const validateButton = screen.getByText("Validating...");
+    expect(validateButton).toBeDisabled();
+  });
+
+  it("shows clear button when API key is provided", () => {
+    render(<ApiKeyInput {...defaultProps} apiKey="sk-test-key" />);
+    expect(screen.getByText("✕")).toBeInTheDocument();
+  });
+
+  it("calls onClear when clear button is clicked", async () => {
+    const user = userEvent.setup();
+    render(<ApiKeyInput {...defaultProps} apiKey="sk-test-key" />);
+
+    const clearButton = screen.getByText("✕");
+    await user.click(clearButton);
+
+    expect(mockOnApiKeyChange).toHaveBeenCalledWith("");
+    expect(mockOnClear).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders information text", () => {
+    render(<ApiKeyInput {...defaultProps} />);
+
+    expect(
+      screen.getByText(
+        "• Your API key is stored locally and never saved on our servers"
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByText(/• Get your API key from/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "• Leave empty to use our default API key (rate limited)"
+      )
+    ).toBeInTheDocument();
+  });
+
+  it("renders link to OpenAI platform", () => {
+    render(<ApiKeyInput {...defaultProps} />);
+
+    const link = screen.getByText("OpenAI Platform");
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute(
+      "href",
+      "https://platform.openai.com/api-keys"
+    );
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("synchronizes input value with prop changes", async () => {
+    const { rerender } = render(<ApiKeyInput {...defaultProps} />);
+
+    const input = screen.getByPlaceholderText("sk-...");
+    expect(input).toHaveValue("");
+
+    rerender(<ApiKeyInput {...defaultProps} apiKey="sk-new-key" />);
+
+    await waitFor(() => {
+      expect(input).toHaveValue("sk-new-key");
+    });
+  });
+
+  it("does not show validate button when API key is empty", () => {
+    render(<ApiKeyInput {...defaultProps} apiKey="" />);
+    expect(screen.queryByText("Validate")).not.toBeInTheDocument();
+  });
+
+  it("does not show clear button when API key is empty", () => {
+    render(<ApiKeyInput {...defaultProps} apiKey="" />);
+    expect(screen.queryByText("✕")).not.toBeInTheDocument();
+  });
+
+  it("disables clear button when validating", () => {
+    render(
+      <ApiKeyInput {...defaultProps} apiKey="sk-test-key" validating={true} />
+    );
+
+    const clearButton = screen.getByText("✕");
+    expect(clearButton).toBeDisabled();
   });
 });

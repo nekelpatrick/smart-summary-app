@@ -1,6 +1,7 @@
 export interface SummaryRequest {
   text: string;
   max_length?: number;
+  api_key?: string;
 }
 
 export interface SummaryResponse {
@@ -9,6 +10,16 @@ export interface SummaryResponse {
 
 export interface ExampleResponse {
   text: string;
+}
+
+export interface ApiKeyValidationRequest {
+  api_key: string;
+}
+
+export interface ApiKeyValidationResponse {
+  valid: boolean;
+  message: string;
+  provider: string;
 }
 
 export interface ApiError {
@@ -48,6 +59,15 @@ export interface MobileTextInputProps {
   loading: boolean;
 }
 
+export interface ApiKeyInputProps {
+  apiKey: string;
+  onApiKeyChange: (apiKey: string) => void;
+  validating: boolean;
+  validationStatus: ApiKeyValidationStatus;
+  onValidate: () => void;
+  onClear: () => void;
+}
+
 export interface UsePasteHandlerProps {
   onPaste: (content: string) => void;
   onError: (error: string) => void;
@@ -61,12 +81,18 @@ export interface UseTextSummaryReturn {
   error: string;
   copied: boolean;
   isCached: boolean;
+  apiKey: string;
+  apiKeyValidationStatus: ApiKeyValidationStatus;
+  validatingApiKey: boolean;
   setText: (text: string) => void;
   summarize: (content: string) => Promise<void>;
   copyToClipboard: () => void;
   reset: () => void;
   loadExample: () => Promise<void>;
   tryAgain: () => Promise<void>;
+  setApiKey: (apiKey: string) => void;
+  validateApiKey: () => Promise<void>;
+  clearApiKey: () => void;
 }
 
 export interface StreamChunk {
@@ -83,4 +109,12 @@ export interface AppConfig {
   copiedFeedbackDuration: number;
   cachedFeedbackDuration: number;
   cacheSize: number;
+}
+
+export type ApiKeyValidationStatus = 'idle' | 'valid' | 'invalid' | 'error';
+
+export interface ApiKeyStorage {
+  getApiKey: () => string | null;
+  setApiKey: (apiKey: string) => void;
+  clearApiKey: () => void;
 } 

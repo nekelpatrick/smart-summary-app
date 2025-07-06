@@ -6,8 +6,12 @@ import type {
   SummaryRequest, 
   UseTextSummaryReturn,
   SummaryCache,
-  ApiError
+  ApiError,
+  ApiKeyValidationStatus,
+  ApiKeyValidationRequest
 } from "../types";
+
+const API_KEY_STORAGE_KEY = 'openai-api-key';
 
 export function useTextSummary(): UseTextSummaryReturn {
   const [text, setText] = useState("");
@@ -16,6 +20,14 @@ export function useTextSummary(): UseTextSummaryReturn {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [isCached, setIsCached] = useState(false);
+  const [apiKey, setApiKeyState] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(API_KEY_STORAGE_KEY) || '';
+    }
+    return '';
+  });
+  const [apiKeyValidationStatus, setApiKeyValidationStatus] = useState<ApiKeyValidationStatus>('idle');
+  const [validatingApiKey, setValidatingApiKey] = useState(false);
   
   const timeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const cacheRef = useRef<SummaryCache>(new Map<string, string>());
@@ -53,6 +65,51 @@ export function useTextSummary(): UseTextSummaryReturn {
     }
   }, []);
 
+  const setApiKey = useCallback((key: string): void => {
+    setApiKeyState(key);
+    if (typeof window !== 'undefined') {
+      if (key) {
+        localStorage.setItem(API_KEY_STORAGE_KEY, key);
+      } else {
+        localStorage.removeItem(API_KEY_STORAGE_KEY);
+      }
+    }
+    setApiKeyValidationStatus('idle');
+  }, []);
+
+  const clearApiKey = useCallback((): void => {
+    setApiKey('');
+    setApiKeyValidationStatus('idle');
+  }, [setApiKey]);
+
+  const validateApiKey = useCallback(async (): Promise<void> => {
+    if (!apiKey.trim()) {
+      setApiKeyValidationStatus('idle');
+      return;
+    }
+
+    setValidatingApiKey(true);
+    setApiKeyValidationStatus('idle');
+
+    try {
+      const request: ApiKeyValidationRequest = { api_key: apiKey.trim() };
+      const result = await apiService.validateApiKey(request);
+      
+      if (result.valid) {
+        setApiKeyValidationStatus('valid');
+      } else {
+        setApiKeyValidationStatus('invalid');
+        setError(result.message);
+      }
+    } catch (err) {
+      setApiKeyValidationStatus('error');
+      const errorMessage = getErrorMessage(err);
+      setError(errorMessage);
+    } finally {
+      setValidatingApiKey(false);
+    }
+  }, [apiKey, getErrorMessage]);
+
   const summarize = useCallback(async (content: string): Promise<void> => {
     if (!isValidText(content)) {
       setError("Please enter valid text to summarize");
@@ -84,7 +141,8 @@ export function useTextSummary(): UseTextSummaryReturn {
     try {
       const request: SummaryRequest = { 
         text: content, 
-        max_length: config.defaultMaxLength 
+        max_length: config.defaultMaxLength,
+        api_key: apiKey || undefined
       };
 
       const result = await apiService.summarizeText(request, (progressContent) => {
@@ -100,7 +158,7 @@ export function useTextSummary(): UseTextSummaryReturn {
     } finally {
       setLoading(false);
     }
-  }, [updateCache, getErrorMessage, clearTimeouts]);
+  }, [updateCache, getErrorMessage, clearTimeouts, apiKey]);
 
   const copyToClipboard = useCallback(async (): Promise<void> => {
     if (!summary) return;
@@ -166,7 +224,8 @@ export function useTextSummary(): UseTextSummaryReturn {
     try {
       const request: SummaryRequest = { 
         text: text, 
-        max_length: config.defaultMaxLength 
+        max_length: config.defaultMaxLength,
+        api_key: apiKey || undefined
       };
 
       const result = await apiService.summarizeText(request, (progressContent) => {
@@ -182,7 +241,7 @@ export function useTextSummary(): UseTextSummaryReturn {
     } finally {
       setLoading(false);
     }
-  }, [text, updateCache, getErrorMessage]);
+  }, [text, updateCache, getErrorMessage, apiKey]);
 
   return {
     text,
@@ -191,11 +250,17 @@ export function useTextSummary(): UseTextSummaryReturn {
     error,
     copied,
     isCached,
+    apiKey,
+    apiKeyValidationStatus,
+    validatingApiKey,
     setText,
     summarize,
     copyToClipboard,
     reset,
     loadExample,
     tryAgain,
+    setApiKey,
+    validateApiKey,
+    clearApiKey,
   };
 } 

@@ -7,6 +7,7 @@ import {
   ResultDisplay,
   MobileTextInput,
   ErrorBoundary,
+  ApiKeyInput,
 } from "./components";
 import { useTextSummary, usePasteHandler } from "./hooks";
 import { getWordCount, getCharCount } from "./utils/text";
@@ -19,12 +20,18 @@ function Home() {
     error,
     copied,
     isCached,
+    apiKey,
+    apiKeyValidationStatus,
+    validatingApiKey,
     setText,
     summarize,
     copyToClipboard,
     reset,
     loadExample,
     tryAgain,
+    setApiKey,
+    validateApiKey,
+    clearApiKey,
   } = useTextSummary();
 
   usePasteHandler({
@@ -49,6 +56,17 @@ function Home() {
             <h1 className="mb-4 md:mb-6 text-4xl md:text-5xl font-bold text-gray-800">
               Paste to Summary
             </h1>
+
+            <div className="max-w-md mx-auto mb-6">
+              <ApiKeyInput
+                apiKey={apiKey}
+                onApiKeyChange={setApiKey}
+                validating={validatingApiKey}
+                validationStatus={apiKeyValidationStatus}
+                onValidate={validateApiKey}
+                onClear={clearApiKey}
+              />
+            </div>
           </header>
 
           {!text && <Instructions onExample={loadExample} loading={loading} />}

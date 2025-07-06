@@ -13,4 +13,5 @@ export const endpoints = {
   summarize: "/summarize/stream",
   example: "/example",
   health: "/health",
+  validateApiKey: "/validate-api-key",
 } as const; 
