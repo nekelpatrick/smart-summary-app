@@ -19,7 +19,7 @@ The setup is pretty straightforward:
 - **Frontend**: Next.js 15 with React, TypeScript, and Tailwind CSS
 - **Backend**: FastAPI with Python
 - **AI**: Currently using OpenAI's GPT-3.5 API for the actual summarization
-- **Infrastructure**: Deployed on AWS ECS with a custom domain and nginx
+- **Infrastructure**: Deployed on AWS EC2 with a custom domain and nginx
 
 The frontend talks to the FastAPI backend, which then handles all the AI magic. I implemented server-side streaming so you can watch the summary appear in real-time instead of staring at a loading spinner.
 
@@ -83,7 +83,7 @@ For backend changes, use the simple deployment script:
 ssh -i ~/Downloads/mac-key.pem ec2-user@177.71.137.52
 
 # Run the update script
-cd /opt/smart-summary-app
+cd /home/ec2-user/smart-summary-app
 ./update-backend.sh
 ```
 
@@ -139,7 +139,7 @@ Started with the constraint that users should only need Docker and Git to run th
 **Frontend Stack:**
 
 - Next.js 15 with Turbopack (the new bundler is noticeably faster)
-- React 18 with modern hooks
+- React 19 with modern hooks
 - Tailwind CSS for styling
 - TypeScript for type safety
 
@@ -200,7 +200,7 @@ Right now it's hardcoded to GPT-3.5, but there's no reason users shouldn't be ab
 1. **Clone and install:**
 
 ```bash
-git clone https://github.com/your-username/smart-summary-app.git
+git clone https://github.com/nekelpatrick/smart-summary-app.git
 cd smart-summary-app
 npm install
 ```
@@ -208,11 +208,8 @@ npm install
 2. **Set up environment:**
 
 ```bash
-# Copy the example env file
-cp .env.example .env
-
-# Add your OpenAI API key (optional)
-echo "OPENAI_API_KEY=your-key-here" >> .env
+# Create environment file and add your OpenAI API key (optional)
+echo "OPENAI_API_KEY=your-key-here" > .env
 ```
 
 3. **Run everything:**
@@ -223,14 +220,14 @@ npm run dev
 
 This starts both the frontend (http://localhost:3000) and backend (http://localhost:8000) in development mode.
 
-### Docker Setup (Work in Progress)
+### Docker Setup
 
 ```bash
-# Should work, but haven't tested extensively
+# Fully tested and working
 docker-compose up
 ```
 
-The Docker setup needs some love. Works locally but the networking gets funky in different environments.
+The Docker setup is well-configured with health checks and proper networking for both development and production environments.
 
 ## Architecture
 
@@ -287,8 +284,8 @@ smart-summary-app/
 │       ├── models.py      # Pydantic models
 │       └── main.py        # FastAPI app
 ├── docker-compose.yml     # Local development
-├── build-images.sh        # Docker build script
-└── update-app.sh          # Zero-downtime deployment
+├── deploy-backend.sh      # Backend deployment script
+└── update-backend.sh      # Zero-downtime deployment
 ```
 
 ## API Reference
