@@ -209,162 +209,6 @@ class TestApiKeyValidationEndpoint:
         assert "API key validation failed" in data["detail"]
 
 
-class TestSummarizeEndpoint:
-    def test_summarize_empty_text(self, mock_llm_service):
-        response = client.post(
-            "/summarize", json={"text": "", "max_length": 100})
-        assert response.status_code == 422
-
-    def test_summarize_whitespace_only(self, mock_llm_service):
-        response = client.post(
-            "/summarize", json={"text": "   ", "max_length": 100})
-        assert response.status_code == 422
-
-    def test_summarize_invalid_max_length_zero(self, mock_llm_service):
-        response = client.post(
-            "/summarize", json={"text": "Valid text", "max_length": 0})
-        assert response.status_code == 422
-
-    def test_summarize_invalid_max_length_negative(self, mock_llm_service):
-        response = client.post(
-            "/summarize", json={"text": "Valid text", "max_length": -1})
-        assert response.status_code == 422
-
-    def test_summarize_invalid_max_length_too_large(self, mock_llm_service):
-        response = client.post(
-            "/summarize", json={"text": "Valid text", "max_length": 1001})
-        assert response.status_code == 422
-
-    def test_summarize_text_too_long(self, mock_llm_service):
-        long_text = "a" * 10001
-        response = client.post(
-            "/summarize", json={"text": long_text, "max_length": 100})
-        assert response.status_code == 422
-
-    def test_summarize_missing_text_field(self, mock_llm_service):
-        response = client.post("/summarize", json={"max_length": 100})
-        assert response.status_code == 422
-
-    def test_summarize_missing_max_length_field(self, mock_llm_service):
-        response = client.post("/summarize", json={"text": "Valid text"})
-        assert response.status_code == 200
-
-    def test_summarize_default_provider(self, mock_llm_service):
-        mock_llm_service.summarize.return_value = "This is a mock summary."
-
-        text = "Test text for summarization."
-        response = client.post(
-            "/summarize", json={"text": text, "max_length": 50})
-
-        assert response.status_code == 200
-        data = response.json()
-        assert "summary" in data
-        assert data["summary"] == "This is a mock summary."
-
-    def test_summarize_openai_provider_explicit(self, mock_llm_service):
-        mock_llm_service.summarize.return_value = "This is a mock summary."
-
-        text = "Test text for summarization."
-        response = client.post(
-            "/summarize", json={"text": text, "max_length": 50, "provider": LLMProvider.OPENAI})
-
-        assert response.status_code == 200
-        data = response.json()
-        assert "summary" in data
-        assert data["summary"] == "This is a mock summary."
-
-    def test_summarize_disabled_provider(self, mock_llm_service):
-        text = "Test text for summarization."
-        response = client.post(
-            "/summarize", json={"text": text, "max_length": 50, "provider": LLMProvider.ANTHROPIC})
-
-        assert response.status_code == 400
-        data = response.json()
-        assert "detail" in data
-        assert "not currently supported" in data["detail"]
-
-    def test_summarize_invalid_json(self, mock_llm_service):
-        response = client.post("/summarize", data="invalid json")
-        assert response.status_code == 422
-
-    def test_summarize_valid_text_success(self, mock_llm_service):
-        mock_llm_service.summarize.return_value = "This is a mock summary."
-
-        text = "Test text for summarization."
-        response = client.post(
-            "/summarize", json={"text": text, "max_length": 50})
-
-        assert response.status_code == 200
-        data = response.json()
-        assert "summary" in data
-        assert data["summary"] == "This is a mock summary."
-
-    def test_summarize_with_custom_api_key(self, mock_llm_service):
-        mock_llm_service.summarize.return_value = "This is a mock summary."
-
-        text = "Test text for summarization."
-        api_key = "sk-" + "a" * 48
-        response = client.post(
-            "/summarize", json={"text": text, "max_length": 50, "api_key": api_key})
-
-        assert response.status_code == 200
-        data = response.json()
-        assert "summary" in data
-        assert data["summary"] == "This is a mock summary."
-        mock_llm_service.summarize.assert_called_once_with(text, 50, api_key)
-
-    def test_summarize_with_custom_api_key_and_provider(self, mock_llm_service):
-        mock_llm_service.summarize.return_value = "This is a mock summary."
-
-        text = "Test text for summarization."
-        api_key = "sk-" + "a" * 48
-        response = client.post(
-            "/summarize", json={"text": text, "max_length": 50, "api_key": api_key, "provider": LLMProvider.OPENAI})
-
-        assert response.status_code == 200
-        data = response.json()
-        assert "summary" in data
-        assert data["summary"] == "This is a mock summary."
-        mock_llm_service.summarize.assert_called_once_with(text, 50, api_key)
-
-    def test_summarize_with_invalid_api_key_format(self, mock_llm_service):
-        text = "Test text for summarization."
-        api_key = "invalid-key"
-        response = client.post(
-            "/summarize", json={"text": text, "max_length": 50, "api_key": api_key})
-
-        assert response.status_code == 422
-
-    def test_summarize_with_empty_api_key(self, mock_llm_service):
-        text = "Test text for summarization."
-        response = client.post(
-            "/summarize", json={"text": text, "max_length": 50, "api_key": ""})
-
-        assert response.status_code == 422
-
-    def test_summarize_service_error(self, mock_llm_service):
-        mock_llm_service.summarize.side_effect = Exception("OpenAI API error")
-
-        text = "Valid text for summarization"
-        response = client.post(
-            "/summarize", json={"text": text, "max_length": 50})
-
-        assert response.status_code == 500
-        data = response.json()
-        assert "detail" in data
-
-    def test_summarize_empty_response_from_service(self, mock_llm_service):
-        mock_llm_service.summarize.return_value = ""
-
-        text = "Valid text for summarization"
-        response = client.post(
-            "/summarize", json={"text": text, "max_length": 50})
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["summary"] == ""
-
-
 class TestSummarizeStreamEndpoint:
     def test_summarize_stream_empty_text(self, mock_llm_service):
         response = client.post(
@@ -427,6 +271,25 @@ class TestSummarizeStreamEndpoint:
             "/summarize/stream", json={"text": text, "max_length": 50, "api_key": api_key})
 
         assert response.status_code == 422
+
+    def test_summarize_stream_with_empty_api_key(self, mock_llm_service):
+        text = "Test text for summarization."
+        response = client.post(
+            "/summarize/stream", json={"text": text, "max_length": 50, "api_key": ""})
+
+        assert response.status_code == 422
+
+    def test_summarize_stream_service_error(self, mock_llm_service):
+        mock_llm_service.summarize_stream.side_effect = Exception(
+            "OpenAI API error")
+
+        text = "Valid text for summarization"
+        response = client.post(
+            "/summarize/stream", json={"text": text, "max_length": 50})
+
+        assert response.status_code == 500
+        data = response.json()
+        assert "detail" in data
 
 
 class TestCORSHeaders:

@@ -1,29 +1,22 @@
-from fastapi import FastAPI, HTTPException, Query, Depends
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import Optional, Dict, Any, List
 import os
 from contextlib import asynccontextmanager
-import httpx
 from dotenv import load_dotenv
 
 from .models import (
-    TextRequest,
-    SummaryResponse,
     ApiKeyValidationRequest,
     ApiKeyValidationResponse,
     ProviderInfo,
-    PROVIDER_CONFIG,
     LLMProvider,
-    is_provider_enabled,
     SummaryRequest,
     ExampleResponse,
     ProvidersResponse,
     ProviderStatus,
 )
 from .services.llm_service import LLMService
-from .services.simplified_smart_summarizer import get_simplified_smart_summarizer
 
 load_dotenv()
 
@@ -142,25 +135,6 @@ async def validate_api_key(request: ApiKeyValidationRequest):
         )
 
 
-@app.post("/summarize", response_model=SummaryResponse)
-async def summarize_text(request: SummaryRequest):
-    try:
-        summary = await llm.summarize_text(
-            request.text,
-            request.max_length,
-            request.api_key,
-            request.provider
-        )
-        return SummaryResponse(
-            summary=summary,
-            original_length=len(request.text),
-            summary_length=len(summary),
-            provider=request.provider
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @app.post("/summarize/stream")
 async def summarize_text_stream(request: SummaryRequest):
     try:
@@ -177,42 +151,6 @@ async def summarize_text_stream(request: SummaryRequest):
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",
             }
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-class EnhancedSummaryResponse(BaseModel):
-    summary: str
-    analysis: Dict[str, Any]
-    key_points: List[str]
-    errors: List[str]
-    original_length: int
-    summary_length: int
-    provider: str
-
-
-@app.post("/summarize/enhanced", response_model=EnhancedSummaryResponse)
-async def summarize_text_enhanced(request: SummaryRequest):
-    """Enhanced summarization with detailed analysis and better compression."""
-    try:
-        if request.provider != LLMProvider.OPENAI:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Provider {request.provider} is not supported for enhanced summarization."
-            )
-
-        smart_summarizer = get_simplified_smart_summarizer(request.api_key)
-        result = await smart_summarizer.summarize(request.text, request.max_length)
-
-        return EnhancedSummaryResponse(
-            summary=result["summary"],
-            analysis=result["analysis"],
-            key_points=result["key_points"],
-            errors=result["errors"],
-            original_length=len(request.text),
-            summary_length=len(result["summary"]),
-            provider=request.provider
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
