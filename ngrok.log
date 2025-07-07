@@ -10,3 +10,7 @@ t=2025-07-07T03:29:31-0300 lvl=info msg=start pg=/api/tunnels id=dffe788e2f66fb7
 t=2025-07-07T03:29:31-0300 lvl=info msg=end pg=/api/tunnels id=dffe788e2f66fb79 status=200 dur=249µs
 t=2025-07-07T03:49:17-0300 lvl=info msg=start pg=/api/tunnels id=4b58fd2762b56801
 t=2025-07-07T03:49:17-0300 lvl=info msg=end pg=/api/tunnels id=4b58fd2762b56801 status=200 dur=3.890875ms
+t=2025-07-07T03:54:39-0300 lvl=info msg=start pg=/api/tunnels id=49f6fb89c9b89245
+t=2025-07-07T03:54:39-0300 lvl=info msg=end pg=/api/tunnels id=49f6fb89c9b89245 status=200 dur=4.082458ms
+t=2025-07-07T03:54:53-0300 lvl=info msg=start pg=/api/tunnels id=617c809e88d37564
+t=2025-07-07T03:54:53-0300 lvl=info msg=end pg=/api/tunnels id=617c809e88d37564 status=200 dur=536.333µs
