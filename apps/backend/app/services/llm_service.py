@@ -1,10 +1,11 @@
 import os
-from typing import AsyncGenerator, Optional, Tuple
+from typing import AsyncGenerator, Optional, Tuple, Dict, Any
 import openai
 from fastapi import HTTPException
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
 from ..models import LLMProvider
+from .smart_summarizer import get_smart_summarizer
 
 load_dotenv()
 
@@ -80,6 +81,22 @@ CONCISE SUMMARY:"""
         if not text.strip():
             raise ValueError("Text cannot be empty")
 
+        try:
+            # Use the smart summarizer for better results
+            smart_summarizer = get_smart_summarizer(api_key)
+            result = await smart_summarizer.summarize(text, max_length)
+            return result["summary"]
+        except Exception as e:
+            if "authentication" in str(e).lower():
+                raise HTTPException(
+                    status_code=401,
+                    detail="Invalid API key. Please check your OpenAI API key."
+                )
+            # Fallback to simple summarization if smart summarizer fails
+            return await self._fallback_summarize(text, max_length, api_key)
+
+    async def _fallback_summarize(self, text: str, max_length: int, api_key: Optional[str] = None) -> str:
+        """Fallback to simple summarization if smart summarizer fails."""
         prompt = self._create_summary_prompt(text, max_length)
 
         try:
@@ -96,11 +113,6 @@ CONCISE SUMMARY:"""
 
             return response.choices[0].message.content.strip()
         except Exception as e:
-            if "authentication" in str(e).lower():
-                raise HTTPException(
-                    status_code=401,
-                    detail="Invalid API key. Please check your OpenAI API key."
-                )
             raise HTTPException(
                 status_code=500, detail=f"Summarization failed: {str(e)}")
 
@@ -120,6 +132,21 @@ CONCISE SUMMARY:"""
         if not text.strip():
             raise ValueError("Text cannot be empty")
 
+        try:
+            smart_summarizer = get_smart_summarizer(api_key)
+            async for chunk in smart_summarizer.summarize_stream(text, max_length):
+                yield chunk
+        except Exception as e:
+            if "authentication" in str(e).lower():
+                raise HTTPException(
+                    status_code=401,
+                    detail="Invalid API key. Please check your OpenAI API key."
+                )
+            async for chunk in self._fallback_stream(text, max_length, api_key):
+                yield chunk
+
+    async def _fallback_stream(self, text: str, max_length: int, api_key: Optional[str] = None) -> AsyncGenerator[str, None]:
+        """Fallback to simple streaming if smart summarizer fails."""
         prompt = self._create_summary_prompt(text, max_length)
 
         try:
@@ -141,11 +168,6 @@ CONCISE SUMMARY:"""
 
             yield "data: [DONE]\n\n"
         except Exception as e:
-            if "authentication" in str(e).lower():
-                raise HTTPException(
-                    status_code=401,
-                    detail="Invalid API key. Please check your OpenAI API key."
-                )
             raise HTTPException(
                 status_code=500, detail=f"Streaming failed: {str(e)}")
 

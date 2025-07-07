@@ -23,6 +23,7 @@ from .models import (
     ProviderStatus,
 )
 from .services.llm_service import LLMService
+from .services.smart_summarizer import get_smart_summarizer
 
 load_dotenv()
 
@@ -176,6 +177,42 @@ async def summarize_text_stream(request: SummaryRequest):
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",
             }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class EnhancedSummaryResponse(BaseModel):
+    summary: str
+    analysis: Dict[str, Any]
+    key_points: List[str]
+    errors: List[str]
+    original_length: int
+    summary_length: int
+    provider: str
+
+
+@app.post("/summarize/enhanced", response_model=EnhancedSummaryResponse)
+async def summarize_text_enhanced(request: SummaryRequest):
+    """Enhanced summarization with detailed analysis and better compression."""
+    try:
+        if request.provider != LLMProvider.OPENAI:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Provider {request.provider} is not supported for enhanced summarization."
+            )
+
+        smart_summarizer = get_smart_summarizer(request.api_key)
+        result = await smart_summarizer.summarize(request.text, request.max_length)
+
+        return EnhancedSummaryResponse(
+            summary=result["summary"],
+            analysis=result["analysis"],
+            key_points=result["key_points"],
+            errors=result["errors"],
+            original_length=len(request.text),
+            summary_length=len(result["summary"]),
+            provider=request.provider
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
