@@ -25,11 +25,32 @@ The frontend talks to the FastAPI backend, which then handles all the AI magic. 
 
 ## Current State & Deployment
 
-Right now, the app is deployed on AWS ECS, which I set up manually via the CLI (yeah, I know, not the most elegant approach). I've got it running behind nginx on EC2 with the custom domain pastetosummary.com all wired up.
+The app is currently deployed with a hybrid approach:
 
-The deployment process was... let's call it "educational." Spent way more time wrestling with networking configs and load balancer settings than I care to admit. But hey, it works!
+- **Frontend**: Deployed on Vercel at https://pastetosummary.com
+- **Backend**: Running on AWS EC2 with nginx SSL proxy at https://api.pastetosummary.com
 
-**Next up**: I'm planning to replace this manual deployment mess with a proper CloudFormation template and GitHub Actions CI/CD pipeline. The goal is to have everything automatically deploy to the ECS cluster whenever I push to main. Should make iterations much smoother.
+**Why the split deployment?**
+
+Originally planned to deploy everything on AWS (ECS or EC2), but ran into time constraints dealing with DNS configuration, SSL certificates, and domain routing complexities. Vercel made the frontend deployment incredibly fast and handled all the HTTPS/domain stuff automatically.
+
+The backend runs on a single EC2 instance with:
+
+- Docker container for the FastAPI application
+- nginx as reverse proxy for SSL termination
+- Let's Encrypt certificates for HTTPS
+- Route 53 DNS pointing `api.pastetosummary.com` to the EC2 instance
+
+**Trade-offs of this approach:**
+
+- ✅ Fast deployment and iteration
+- ✅ Vercel handles CDN, HTTPS, and scaling for frontend
+- ✅ Simple backend deployment on familiar EC2
+- ❌ Split between two platforms (more complexity)
+- ❌ Manual SSL certificate management on EC2
+- ❌ Single point of failure for backend
+
+**Future improvements**: Planning to consolidate everything into AWS with proper Infrastructure as Code (CloudFormation/CDK) and implement CI/CD pipelines. But for now, this hybrid approach gets the job done and allows for rapid iteration.
 
 ## Features & What I Added Along the Way
 
@@ -170,6 +191,19 @@ The Docker setup needs some love. Works locally but the networking gets funky in
 
 <img src="public/diagram.png" alt="landing page screenshot" style="width:65vw;"/>
 
+### Production Architecture
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Vercel        │    │   AWS EC2       │    │   OpenAI API    │
+│   Next.js       │    │   nginx + SSL   │    │                 │
+│   Frontend      │◄──►│   FastAPI       │◄──►│   GPT-3.5       │
+│pastetosummary.com│    │api.pastetosummary│    │                 │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+```
+
+### Local Development
+
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Next.js       │    │   FastAPI       │    │   OpenAI API    │
@@ -183,6 +217,7 @@ The Docker setup needs some love. Works locally but the networking gets funky in
 - REST API calls for standard operations
 - Server-Sent Events for streaming responses
 - Error handling and retry logic
+- CORS properly configured for cross-origin requests
 
 **Backend → OpenAI:**
 
