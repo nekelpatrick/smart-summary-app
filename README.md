@@ -52,6 +52,51 @@ The backend runs on a single EC2 instance with:
 
 **Future improvements**: Planning to consolidate everything into AWS with proper Infrastructure as Code (CloudFormation/CDK) and implement CI/CD pipelines. But for now, this hybrid approach gets the job done and allows for rapid iteration.
 
+## Deployment Process
+
+### Frontend Deployment (Automatic)
+
+Frontend is automatically deployed to Vercel when you push to the `main` branch. No manual intervention needed.
+
+### Backend Deployment (Manual)
+
+For backend changes, use the simple deployment script:
+
+```bash
+# Make your backend changes
+# Then run the deployment script
+./deploy-backend.sh
+```
+
+**What this script does:**
+
+1. Commits and pushes your changes to GitHub
+2. Connects to EC2 and pulls latest code
+3. Rebuilds the backend Docker image
+4. Restarts the backend container with zero-downtime
+5. Verifies the deployment is healthy
+
+**Manual deployment (if needed):**
+
+```bash
+# SSH to EC2 instance
+ssh -i ~/Downloads/mac-key.pem ec2-user@177.71.137.52
+
+# Run the update script
+cd /opt/smart-summary-app
+./update-backend.sh
+```
+
+**Troubleshooting deployment:**
+
+```bash
+# Check backend container logs
+ssh -i ~/Downloads/mac-key.pem ec2-user@177.71.137.52 'docker logs smart-summary-backend'
+
+# Check container status
+ssh -i ~/Downloads/mac-key.pem ec2-user@177.71.137.52 'docker ps'
+```
+
 ## Features & What I Added Along the Way
 
 ### Core Functionality
