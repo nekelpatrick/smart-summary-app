@@ -37,6 +37,7 @@ function Home(): React.ReactElement {
     setSelectedProvider,
     validateApiKey,
     clearApiKey,
+    loadProviders,
   } = useTextSummary();
 
   const { toasts, removeToast, showSuccess, showError, showInfo } = useToast();
@@ -63,6 +64,12 @@ function Home(): React.ReactElement {
       setIsProcessing(false);
     }
   }, [loading, isProcessing]);
+
+  useEffect(() => {
+    if (showApiSettings && availableProviders.length === 0) {
+      loadProviders();
+    }
+  }, [showApiSettings, availableProviders.length, loadProviders]);
 
   const handleSummarize = async (content: string) => {
     try {
@@ -128,7 +135,6 @@ function Home(): React.ReactElement {
       }
     },
     summarize: handleSummarize,
-    loading,
   });
 
   return (

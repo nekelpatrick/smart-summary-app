@@ -1,23 +1,12 @@
-import { useEffect, useRef, useCallback } from "react";
-import { config } from "../config";
+import { useEffect, useCallback } from "react";
 import { isValidText } from "../utils/text";
 import type { UsePasteHandlerProps } from "../types";
 
-export function usePasteHandler({ onPaste, onError, summarize, loading }: UsePasteHandlerProps): () => void {
-  const timeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
-
-  const clearPendingSummarization = useCallback(() => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = undefined;
-    }
-  }, []);
-
+export function usePasteHandler({ onPaste, onError, summarize }: UsePasteHandlerProps): () => void {
   const handlePaste = useCallback(
     (event: ClipboardEvent) => {
       const target = event.target as HTMLElement;
       
-      // Only handle paste events that occur outside of text inputs/textareas
       if (
         target && 
         (target.tagName === "INPUT" || 
@@ -34,28 +23,24 @@ export function usePasteHandler({ onPaste, onError, summarize, loading }: UsePas
         return;
       }
 
-      // Prevent the default paste behavior since we're handling it
       event.preventDefault();
       
       onPaste(content);
       onError("");
 
-      clearPendingSummarization();
-
-      if (!loading) {
-        timeoutRef.current = setTimeout(() => summarize(content), config.debounceDelay);
-      }
+      setTimeout(() => {
+        summarize(content);
+      }, 0);
     },
-    [onPaste, onError, summarize, loading, clearPendingSummarization]
+    [onPaste, onError, summarize]
   );
 
   useEffect(() => {
     document.addEventListener("paste", handlePaste);
     return () => {
       document.removeEventListener("paste", handlePaste);
-      clearPendingSummarization();
     };
-  }, [handlePaste, clearPendingSummarization]);
+  }, [handlePaste]);
 
-  return clearPendingSummarization;
+  return () => {};
 } 

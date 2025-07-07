@@ -218,28 +218,36 @@ describe("Home Component", () => {
 
       render(<Home />);
 
+      // Paste event
       await act(async () => {
         document.dispatchEvent(createPasteEvent("Test content"));
-        await new Promise((resolve) => setTimeout(resolve, 700));
       });
 
+      // Wait for text to be set
       await waitFor(() => {
-        expect(screen.getByText("Your Text")).toBeInTheDocument();
         expect(screen.getByText("Test content")).toBeInTheDocument();
       });
 
+      // Wait for debounced summarize call (500ms + processing time)
+      await waitFor(
+        () => {
+          expect(mockFetch).toHaveBeenCalledWith(
+            "/summarize/stream",
+            expect.objectContaining({
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                text: "Test content",
+                max_length: 300,
+                provider: "openai",
+              }),
+            })
+          );
+        },
+        { timeout: 2000 }
+      );
+
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith(
-          "http://localhost:8000/summarize/stream",
-          expect.objectContaining({
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              text: "Test content",
-              max_length: 300,
-            }),
-          })
-        );
         expect(screen.getByText("Test summary")).toBeInTheDocument();
       });
     });

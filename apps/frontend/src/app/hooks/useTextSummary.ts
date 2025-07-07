@@ -276,12 +276,6 @@ export function useTextSummary(): UseTextSummaryReturn {
   }, [text, summarize]);
 
   useEffect(() => {
-    if (isHydrated) {
-      loadProviders();
-    }
-  }, [isHydrated, loadProviders]);
-
-  useEffect(() => {
     return () => {
       clearTimeouts();
     };
@@ -310,5 +304,6 @@ export function useTextSummary(): UseTextSummaryReturn {
     setSelectedProvider,
     validateApiKey,
     clearApiKey,
+    loadProviders,
   };
 } 

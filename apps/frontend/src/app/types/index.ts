@@ -112,7 +112,6 @@ export interface UsePasteHandlerProps {
   onPaste: (content: string) => void;
   onError: (error: string) => void;
   summarize: (content: string) => Promise<void>;
-  loading: boolean;
 }
 
 export interface UseTextSummaryReturn {
@@ -138,6 +137,7 @@ export interface UseTextSummaryReturn {
   setSelectedProvider: (provider: LLMProvider) => void;
   validateApiKey: () => Promise<void>;
   clearApiKey: () => void;
+  loadProviders: () => Promise<void>;
 }
 
 export interface StreamChunk {
