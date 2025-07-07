@@ -169,6 +169,10 @@ export function useTextSummary(): UseTextSummaryReturn {
       return;
     }
 
+    if (loading) {
+      return;
+    }
+
     const normalizedContent = normalizeText(content);
     const cache = cacheRef.current;
     const cachedSummary = cache?.get(normalizedContent);
@@ -212,7 +216,7 @@ export function useTextSummary(): UseTextSummaryReturn {
     } finally {
       setLoading(false);
     }
-  }, [updateCache, getErrorMessage, clearTimeouts, apiKey, selectedProvider]);
+  }, [updateCache, getErrorMessage, clearTimeouts, apiKey, selectedProvider, loading]);
 
   const copyToClipboard = useCallback(async (): Promise<void> => {
     if (!summary) return;

@@ -66,6 +66,7 @@ function Home(): React.ReactElement {
 
   const handleSummarize = async (content: string) => {
     try {
+      clearPendingPasteSummarization();
       setIsProcessing(true);
       setTimeout(scrollToResults, 100);
       await summarize(content);
@@ -89,6 +90,7 @@ function Home(): React.ReactElement {
 
   const handleTryAgain = async () => {
     try {
+      clearPendingPasteSummarization();
       setIsProcessing(true);
       setTimeout(scrollToResults, 100);
       await tryAgain();
@@ -101,6 +103,7 @@ function Home(): React.ReactElement {
 
   const handleLoadExample = async () => {
     try {
+      clearPendingPasteSummarization();
       setIsProcessing(true);
       setTimeout(scrollToResults, 100);
       await loadExample();
@@ -114,7 +117,7 @@ function Home(): React.ReactElement {
   const wordCount = useMemo(() => getWordCount(text), [text]);
   const charCount = useMemo(() => getCharCount(text), [text]);
 
-  usePasteHandler({
+  const clearPendingPasteSummarization = usePasteHandler({
     onPaste: (content: string) => {
       setText(content);
       showInfo("Text pasted anywhere on the page! Processing...");
@@ -125,6 +128,7 @@ function Home(): React.ReactElement {
       }
     },
     summarize: handleSummarize,
+    loading,
   });
 
   return (

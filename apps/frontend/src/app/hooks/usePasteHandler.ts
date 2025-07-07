@@ -3,8 +3,15 @@ import { config } from "../config";
 import { isValidText } from "../utils/text";
 import type { UsePasteHandlerProps } from "../types";
 
-export function usePasteHandler({ onPaste, onError, summarize }: UsePasteHandlerProps): void {
+export function usePasteHandler({ onPaste, onError, summarize, loading }: UsePasteHandlerProps): () => void {
   const timeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+
+  const clearPendingSummarization = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = undefined;
+    }
+  }, []);
 
   const handlePaste = useCallback(
     (event: ClipboardEvent) => {
@@ -16,7 +23,7 @@ export function usePasteHandler({ onPaste, onError, summarize }: UsePasteHandler
         (target.tagName === "INPUT" || 
          target.tagName === "TEXTAREA" || 
          target.isContentEditable ||
-         target.closest("input, textarea, [contenteditable]"))
+         (target.closest && target.closest("input, textarea, [contenteditable]")))
       ) {
         return;
       }
@@ -33,21 +40,22 @@ export function usePasteHandler({ onPaste, onError, summarize }: UsePasteHandler
       onPaste(content);
       onError("");
 
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+      clearPendingSummarization();
+
+      if (!loading) {
+        timeoutRef.current = setTimeout(() => summarize(content), config.debounceDelay);
       }
-      timeoutRef.current = setTimeout(() => summarize(content), config.debounceDelay);
     },
-    [onPaste, onError, summarize]
+    [onPaste, onError, summarize, loading, clearPendingSummarization]
   );
 
   useEffect(() => {
     document.addEventListener("paste", handlePaste);
     return () => {
       document.removeEventListener("paste", handlePaste);
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
+      clearPendingSummarization();
     };
-  }, [handlePaste]);
+  }, [handlePaste, clearPendingSummarization]);
+
+  return clearPendingSummarization;
 } 

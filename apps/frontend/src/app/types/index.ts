@@ -112,6 +112,7 @@ export interface UsePasteHandlerProps {
   onPaste: (content: string) => void;
   onError: (error: string) => void;
   summarize: (content: string) => Promise<void>;
+  loading: boolean;
 }
 
 export interface UseTextSummaryReturn {
