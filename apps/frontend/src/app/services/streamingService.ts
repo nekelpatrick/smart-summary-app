@@ -98,13 +98,10 @@ class StreamingService {
   }
 
   private isMetadata(data: string): boolean {
-    // Check if the data is JSON metadata (contains stage, message, etc.)
     const trimmed = data.trim();
     
-    // Skip empty or whitespace-only data
     if (!trimmed) return true;
     
-    // Check for obvious JSON patterns and partial JSON artifacts
     if (trimmed.startsWith('{') || trimmed.endsWith('}') ||
         trimmed.includes('"stage"') || trimmed.includes('"message"') || 
         trimmed.includes('"text_type"') || trimmed.includes('"count"') || 
@@ -114,14 +111,11 @@ class StreamingService {
       return true;
     }
     
-    // Try to parse as JSON to catch other metadata
     try {
       const parsed = JSON.parse(trimmed);
-      // If it parses as JSON and has metadata fields, it's metadata
       return !!(parsed.stage || parsed.message || parsed.text_type || parsed.count || 
                parsed.compression_achieved || parsed.quality_score);
     } catch {
-      // If it's not JSON, it's likely actual summary content
       return false;
     }
   }
