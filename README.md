@@ -298,7 +298,8 @@ Health check endpoint
 **GET /example**  
 Returns sample text for testing
 
-**POST /summarize**
+**POST /summarize/stream**
+Streams the text summarization response in real-time
 
 ```json
 {
@@ -309,8 +310,8 @@ Returns sample text for testing
 }
 ```
 
-**POST /summarize/stream**
-Same as above, but streams the response in real-time
+**POST /validate-api-key**
+Validates an API key for a specific provider
 
 **GET /providers**
 Lists available AI providers and their status
