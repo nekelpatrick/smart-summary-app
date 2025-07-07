@@ -1,7 +1,7 @@
 import type { AppConfig } from "../types";
 
 export const config: AppConfig = {
-  apiUrl: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000",
+  apiUrl: process.env.NEXT_PUBLIC_API_URL || "",
   defaultMaxLength: 300,
   cacheSize: 50,
   debounceDelay: 500,
