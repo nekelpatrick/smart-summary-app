@@ -77,7 +77,7 @@ class TestExampleEndpoint:
         assert "text" in data
         assert isinstance(data["text"], str)
         assert len(data["text"]) > 0
-        assert "project meeting notes" in data["text"].lower()
+        assert "go-horse programming" in data["text"].lower()
 
 
 class TestApiKeyValidationEndpoint:
