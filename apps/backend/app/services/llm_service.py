@@ -5,7 +5,7 @@ from fastapi import HTTPException
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
 from ..models import LLMProvider
-from .smart_summarizer import get_smart_summarizer
+from .simplified_smart_summarizer import get_simplified_smart_summarizer
 
 load_dotenv()
 
@@ -83,7 +83,7 @@ CONCISE SUMMARY:"""
 
         try:
             # Use the smart summarizer for better results
-            smart_summarizer = get_smart_summarizer(api_key)
+            smart_summarizer = get_simplified_smart_summarizer(api_key)
             result = await smart_summarizer.summarize(text, max_length)
             return result["summary"]
         except Exception as e:
@@ -133,7 +133,7 @@ CONCISE SUMMARY:"""
             raise ValueError("Text cannot be empty")
 
         try:
-            smart_summarizer = get_smart_summarizer(api_key)
+            smart_summarizer = get_simplified_smart_summarizer(api_key)
             async for chunk in smart_summarizer.summarize_stream(text, max_length):
                 yield chunk
         except Exception as e:

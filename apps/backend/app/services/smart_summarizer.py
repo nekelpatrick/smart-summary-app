@@ -5,39 +5,34 @@ import asyncio
 
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, END
-from langgraph.graph.message import add_messages
 from langchain_core.messages import HumanMessage, AIMessage
-from pydantic import BaseModel, Field
+from typing import TypedDict
 from fastapi import HTTPException
 
 from ..models import LLMProvider
 
 
-class TextAnalysis(BaseModel):
+class TextAnalysis(TypedDict):
     """Analysis of input text to determine optimal summarization strategy."""
-    text_type: str = Field(...,
-                           description="Type: meeting, article, technical, email, other")
-    complexity: str = Field(..., description="Low, Medium, High")
-    key_elements: List[str] = Field(
-        default_factory=list, description="Main elements identified")
-    optimal_compression: float = Field(...,
-                                       description="Target compression ratio (0.1-0.8)")
-    estimated_tokens: int = Field(...,
-                                  description="Estimated input token count")
+    text_type: str
+    complexity: str
+    key_elements: List[str]
+    optimal_compression: float
+    estimated_tokens: int
 
 
-class SummaryState(BaseModel):
+class SummaryState(TypedDict):
     """State object for the LangGraph summarization pipeline."""
     original_text: str
     max_length: int
-    analysis: Optional[TextAnalysis] = None
-    key_points: List[str] = Field(default_factory=list)
-    intermediate_summary: str = ""
-    final_summary: str = ""
-    compression_achieved: float = 0.0
-    quality_score: float = 0.0
-    token_usage: Dict[str, int] = Field(default_factory=dict)
-    errors: List[str] = Field(default_factory=list)
+    analysis: Optional[TextAnalysis]
+    key_points: List[str]
+    intermediate_summary: str
+    final_summary: str
+    compression_achieved: float
+    quality_score: float
+    token_usage: Dict[str, int]
+    errors: List[str]
 
 
 class SmartSummarizer:
@@ -113,28 +108,28 @@ ANALYSIS:"""
             import json
             try:
                 analysis_data = json.loads(response.content)
-                state.analysis = TextAnalysis(**analysis_data)
+                state["analysis"] = analysis_data
             except json.JSONDecodeError:
                 # Fallback analysis
-                state.analysis = TextAnalysis(
-                    text_type="other",
-                    complexity="Medium",
-                    key_elements=["main content"],
-                    optimal_compression=0.3,
-                    estimated_tokens=word_count
-                )
+                state["analysis"] = {
+                    "text_type": "other",
+                    "complexity": "Medium",
+                    "key_elements": ["main content"],
+                    "optimal_compression": 0.3,
+                    "estimated_tokens": word_count
+                }
 
         except Exception as e:
-            state.errors.append(f"Analysis failed: {str(e)}")
+            state["errors"].append(f"Analysis failed: {str(e)}")
             # Provide default analysis
-            word_count = len(state.original_text.split())
-            state.analysis = TextAnalysis(
-                text_type="other",
-                complexity="Medium",
-                key_elements=["content"],
-                optimal_compression=0.25,
-                estimated_tokens=word_count
-            )
+            word_count = len(state["original_text"].split())
+            state["analysis"] = {
+                "text_type": "other",
+                "complexity": "Medium",
+                "key_elements": ["content"],
+                "optimal_compression": 0.25,
+                "estimated_tokens": word_count
+            }
 
         return state
 

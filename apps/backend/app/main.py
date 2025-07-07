@@ -23,7 +23,7 @@ from .models import (
     ProviderStatus,
 )
 from .services.llm_service import LLMService
-from .services.smart_summarizer import get_smart_summarizer
+from .services.simplified_smart_summarizer import get_simplified_smart_summarizer
 
 load_dotenv()
 
@@ -202,7 +202,7 @@ async def summarize_text_enhanced(request: SummaryRequest):
                 detail=f"Provider {request.provider} is not supported for enhanced summarization."
             )
 
-        smart_summarizer = get_smart_summarizer(request.api_key)
+        smart_summarizer = get_simplified_smart_summarizer(request.api_key)
         result = await smart_summarizer.summarize(request.text, request.max_length)
 
         return EnhancedSummaryResponse(
