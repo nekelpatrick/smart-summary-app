@@ -45,6 +45,75 @@ import { TextDecoder, TextEncoder } from 'util'
 global.TextDecoder = TextDecoder
 global.TextEncoder = TextEncoder
 
+// Polyfill for ReadableStream
+global.ReadableStream = class ReadableStream {
+  constructor(underlyingSource) {
+    this.locked = false;
+    this._reader = null;
+    this._chunks = [];
+    this._done = false;
+    
+    if (underlyingSource && underlyingSource.start) {
+      const controller = {
+        enqueue: (chunk) => this._chunks.push(chunk),
+        close: () => this._done = true,
+        error: (reason) => this._error = reason
+      };
+      
+      try {
+        underlyingSource.start(controller);
+      } catch (error) {
+        this._error = error;
+      }
+    }
+  }
+  
+  getReader() {
+    if (this.locked) {
+      throw new TypeError('ReadableStream is locked');
+    }
+    
+    this.locked = true;
+    this._reader = {
+      read: () => {
+        return new Promise((resolve) => {
+          if (this._error) {
+            resolve({ done: true, value: undefined });
+            return;
+          }
+          
+          if (this._chunks.length > 0) {
+            const value = this._chunks.shift();
+            resolve({ done: false, value });
+          } else if (this._done) {
+            resolve({ done: true, value: undefined });
+          } else {
+            // Simulate async reading
+            setTimeout(() => {
+              if (this._chunks.length > 0) {
+                const value = this._chunks.shift();
+                resolve({ done: false, value });
+              } else {
+                resolve({ done: true, value: undefined });
+              }
+            }, 0);
+          }
+        });
+      },
+      releaseLock: () => {
+        this.locked = false;
+        this._reader = null;
+      }
+    };
+    
+    return this._reader;
+  }
+  
+  get body() {
+    return this;
+  }
+};
+
 // Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
