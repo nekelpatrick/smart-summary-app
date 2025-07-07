@@ -24,7 +24,7 @@ class StreamingService {
             return fullContent;
           }
           
-          if (chunk.data) {
+          if (chunk.data && !this.isMetadata(chunk.data)) {
             fullContent += chunk.data;
           }
         }
@@ -61,7 +61,7 @@ class StreamingService {
               return fullContent;
             }
             
-            if (chunk.data) {
+            if (chunk.data && !this.isMetadata(chunk.data)) {
               fullContent += chunk.data;
               onChunk(fullContent);
             }
@@ -95,6 +95,17 @@ class StreamingService {
     }
     
     return chunks;
+  }
+
+  private isMetadata(data: string): boolean {
+    // Check if the data is JSON metadata (contains stage, message, etc.)
+    try {
+      const parsed = JSON.parse(data);
+      return !!(parsed.stage || parsed.message || parsed.text_type || parsed.count || parsed.compression_achieved || parsed.quality_score);
+    } catch {
+      // If it's not JSON, it's actual summary content
+      return false;
+    }
   }
 }
 

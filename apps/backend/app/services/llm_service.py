@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from openai import AsyncOpenAI
 from ..models import LLMProvider
 from .simplified_smart_summarizer import get_simplified_smart_summarizer
+import asyncio
 
 load_dotenv()
 
@@ -133,9 +134,21 @@ CONCISE SUMMARY:"""
             raise ValueError("Text cannot be empty")
 
         try:
+            # Use the smart summarizer but filter out metadata
             smart_summarizer = get_simplified_smart_summarizer(api_key)
-            async for chunk in smart_summarizer.summarize_stream(text, max_length):
-                yield chunk
+
+            # Get the complete summary first, then stream it cleanly
+            result = await smart_summarizer.summarize(text, max_length)
+            summary = result["summary"]
+
+            # Stream the summary word by word for better UX
+            words = summary.split()
+            for i, word in enumerate(words):
+                yield f"data: {word}{' ' if i < len(words) - 1 else ''}\n\n"
+                await asyncio.sleep(0.05)  # Small delay for streaming effect
+
+            yield "data: [DONE]\n\n"
+
         except Exception as e:
             if "authentication" in str(e).lower():
                 raise HTTPException(
