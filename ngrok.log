@@ -1,0 +1,12 @@
+t=2025-07-07T03:29:27-0300 lvl=info msg="no configuration paths supplied"
+t=2025-07-07T03:29:27-0300 lvl=info msg="using configuration at default config path" path="/Users/nekelpatrick/Library/Application Support/ngrok/ngrok.yml"
+t=2025-07-07T03:29:27-0300 lvl=info msg="open config file" path="/Users/nekelpatrick/Library/Application Support/ngrok/ngrok.yml" err=nil
+t=2025-07-07T03:29:27-0300 lvl=info msg="starting web service" obj=web addr=127.0.0.1:4040 allow_hosts=[]
+t=2025-07-07T03:29:27-0300 lvl=info msg="client session established" obj=tunnels.session
+t=2025-07-07T03:29:27-0300 lvl=info msg="tunnel session started" obj=tunnels.session
+t=2025-07-07T03:29:27-0300 lvl=info msg="started tunnel" obj=tunnels name=command_line addr=http://localhost:8000 url=https://b099-45-163-153-188.ngrok-free.app
+t=2025-07-07T03:29:27-0300 lvl=info msg="update available" obj=updater
+t=2025-07-07T03:29:31-0300 lvl=info msg=start pg=/api/tunnels id=dffe788e2f66fb79
+t=2025-07-07T03:29:31-0300 lvl=info msg=end pg=/api/tunnels id=dffe788e2f66fb79 status=200 dur=249µs
+t=2025-07-07T03:49:17-0300 lvl=info msg=start pg=/api/tunnels id=4b58fd2762b56801
+t=2025-07-07T03:49:17-0300 lvl=info msg=end pg=/api/tunnels id=4b58fd2762b56801 status=200 dur=3.890875ms
